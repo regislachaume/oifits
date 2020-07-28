@@ -1,0 +1,188 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "We import the oifits module, open a sample OIFITS2 file, and fix a badly named column."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import oifits"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "hdulist = oifits.oifitsopen('demo/test1.fits')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "for h in hdulist[8::4]:\n",
+    "    h.rename_columns(FLUX='FLUXDATA')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "We want to verify its compliance to the standard and fix mendable issues"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "WARNING: VerifyWarning: Verification reported errors: [astropy.io.fits.verify]\n",
+      "WARNING: VerifyWarning: HDU 1: [astropy.io.fits.verify]\n",
+      "WARNING: VerifyWarning:     Column 'TEL_NAME' type must be 8-bytes string but is 3-bytes string.  Ignored. [astropy.io.fits.verify]\n",
+      "WARNING: VerifyWarning:     Column 'STA_NAME' type must be 8-bytes string but is 2-bytes string.  Ignored. [astropy.io.fits.verify]\n",
+      "WARNING: VerifyWarning:     Column name(s) should start with prefix_ :''MNTSTA''.  NS_ has been prefixed to column name(s) [astropy.io.fits.verify]\n",
+      "WARNING: VerifyWarning: HDU 2: [astropy.io.fits.verify]\n",
+      "WARNING: VerifyWarning:     Column 'VELTYP' type must be 8-bytes string but is 7-bytes string.  Ignored. [astropy.io.fits.verify]\n",
+      "WARNING: VerifyWarning:     Column 'VELDEF' type must be 8-bytes string but is 7-bytes string.  Ignored. [astropy.io.fits.verify]\n",
+      "WARNING: VerifyWarning:     Column 'TARGET' type must be 32-bytes string but is 8-bytes string.  Ignored. [astropy.io.fits.verify]\n",
+      "WARNING: VerifyWarning:     Column 'SPECTYP' type must be 32-bytes string but is 7-bytes string.  Ignored. [astropy.io.fits.verify]\n",
+      "WARNING: VerifyWarning: HDU 5: [astropy.io.fits.verify]\n",
+      "WARNING: VerifyWarning:     Column 'TIME' type must be 4-bytes float but is 8-bytes float.  Ignored. [astropy.io.fits.verify]\n",
+      "WARNING: VerifyWarning:     Column name(s) should start with prefix_ :''VISDATA', 'VISERR', 'NDIT', 'NVALID''.  NS_ has been prefixed to column name(s) [astropy.io.fits.verify]\n",
+      "WARNING: VerifyWarning: HDU 6: [astropy.io.fits.verify]\n",
+      "WARNING: VerifyWarning:     Column name(s) should start with prefix_ :''NDIT', 'NVALID''.  NS_ has been prefixed to column name(s) [astropy.io.fits.verify]\n",
+      "WARNING: VerifyWarning: HDU 7: [astropy.io.fits.verify]\n",
+      "WARNING: VerifyWarning: HDU 8: [astropy.io.fits.verify]\n",
+      "WARNING: VerifyWarning:     Column name(s) should start with prefix_ :''VISDATA', 'VISERR', 'NDIT', 'NVALID', 'GDELAY', 'PHASE''.  NS_ has been prefixed to column name(s) [astropy.io.fits.verify]\n",
+      "WARNING: VerifyWarning: HDU 9: [astropy.io.fits.verify]\n",
+      "WARNING: VerifyWarning: HDU 10: [astropy.io.fits.verify]\n",
+      "WARNING: VerifyWarning: Note: astropy.io.fits uses zero-based indexing.\n",
+      " [astropy.io.fits.verify]\n"
+     ]
+    }
+   ],
+   "source": [
+    "hdulist.verify('fix+warn')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "The OIFITS file prints nicely, indicating extensions with the data dimension."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "<OIFITS2 at 0x7fe065107bd0: <PrimaryHDU2 (void)> <ArrayHDU2 (6C×4R)> <TargetHDU2 (17C×2R)> <WavelengthHDU2 (2C×210R=210W)> <WavelengthHDU2 (2C×5R=5W)> <VisHDU2 (20C×6R×5W)> <Vis2HDU2 (12C×6R×5W)> <T3HDU2 (16C×4R×5W)> <FluxHDU1 (10C×4R×5W)> <VisHDU2 (29C×6R×210W)> <Vis2HDU2 (12C×6R×210W)> <T3HDU2 (16C×4R×210W)> <FluxHDU1 (15C×4R×210W)>>"
+      ]
+     },
+     "execution_count": 5,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "hdulist"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "One of the problems of the OIFITS standard is how complicated the data structure is, with a lot of cross-references.  It is possible to obtain the data in a flat table, listing one single scalar observable per line together to all relevant parameters such as target, date, wavelength, band, baseline(s)."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      " TARGET    EFF_WAVE    EFF_BAND  U1COORD ... observable  value    error  \n",
+      "-------- ----------- ----------- ------- ... ---------- ------- ---------\n",
+      "CO_Ori_A 2.02369e-06 8.50000e-08   5.488 ...     VISAMP 0.84688 0.0041681\n",
+      "CO_Ori_A 2.09294e-06 8.50000e-08   5.488 ...     VISAMP 0.94783 0.0019325\n",
+      "CO_Ori_A 2.19100e-06 8.50000e-08   5.488 ...     VISAMP 0.97285   0.00123\n",
+      "CO_Ori_A 2.29188e-06 8.50000e-08   5.488 ...     VISAMP  0.9789 0.0017413\n",
+      "CO_Ori_A 2.36233e-06 8.50000e-08   5.488 ...     VISAMP 0.96522 0.0013306\n",
+      "CO_Ori_A 2.02369e-06 8.50000e-08  -2.729 ...     VISAMP 0.72994 0.0063785\n",
+      "CO_Ori_A 2.09294e-06 8.50000e-08  -2.729 ...     VISAMP 0.80576 0.0026422\n",
+      "CO_Ori_A 2.19100e-06 8.50000e-08  -2.729 ...     VISAMP 0.86026 0.0021998\n",
+      "CO_Ori_A 2.29188e-06 8.50000e-08  -2.729 ...     VISAMP 0.89297 0.0013147\n",
+      "CO_Ori_A 2.36233e-06 8.50000e-08  -2.729 ...     VISAMP 0.92514 0.0019255\n",
+      "     ...         ...         ...     ... ...        ...     ...       ...\n",
+      "CO_Ori_B 2.42799e-06 4.40191e-09      -- ...   FLUXDATA  4133.4    252.01\n",
+      "CO_Ori_B 2.43019e-06 4.40191e-09      -- ...   FLUXDATA    4556    189.55\n",
+      "CO_Ori_B 2.43239e-06 4.40191e-09      -- ...   FLUXDATA  3818.2    236.74\n",
+      "CO_Ori_B 2.43459e-06 4.40191e-09      -- ...   FLUXDATA  3291.1     150.2\n",
+      "CO_Ori_B 2.43679e-06 4.40191e-09      -- ...   FLUXDATA  2955.2    245.56\n",
+      "CO_Ori_B 2.43900e-06 4.40191e-09      -- ...   FLUXDATA  4231.8     247.2\n",
+      "CO_Ori_B 2.44120e-06 4.40191e-09      -- ...   FLUXDATA  3596.4    226.42\n",
+      "CO_Ori_B 2.44340e-06 4.40191e-09      -- ...   FLUXDATA  3653.5     273.6\n",
+      "CO_Ori_B 2.44560e-06 4.40191e-09      -- ...   FLUXDATA  3282.7     192.7\n",
+      "CO_Ori_B 2.44780e-06 4.40191e-09      -- ...   FLUXDATA    3037    250.84\n",
+      "CO_Ori_B 2.45000e-06 4.40191e-09      -- ...   FLUXDATA  3098.7    146.92\n",
+      "Length = 9030 rows\n"
+     ]
+    }
+   ],
+   "source": [
+    "tab = hdulist.to_table()\n",
+    "print(tab['TARGET','EFF_WAVE','EFF_BAND','U1COORD','V1COORD','U2COORD','V2COORD','observable','value','error'])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.8.2"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 4
+}

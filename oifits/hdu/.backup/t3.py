@@ -1,0 +1,49 @@
+from .data import _DataHDU11, _DataHDU22
+from .base import _OIExtHDU
+from .wavelength import _NW
+
+from .. import utils as _u
+
+__all__ = ["T3HDU1", "T3HDU2"]
+
+class _T3HDU(_OIExtHDU):
+    _EXTNAME = 'OI_T3'    
+    _COORD_COLUMNS = ['U1COORD', 'V1COORD', 'U2COORD', 'V2COORD']
+    _COLUMNS = [
+        ('TIME',      True, '>f8', (),     None,            0,    None),
+        ('STA_INDEX', True, '>i2', (3,),   _u.is_strictpos, None, None),
+        ('U1COORD',   True, '>f8', (),     None,            None, None), 
+        ('V1COORD',   True, '>f8', (),     None,            None, None),
+        ('U2COORD',   True, '>f8', (),     None,            None, None), 
+        ('V2COORD',   True, '>f8', (),     None,            None, None),
+        ('T3AMP',     True, '>f8', (_NW,), None,            None, None), 
+        ('T3AMPERR',  True, '>f8', (_NW,), None,            None, None),
+        ('T3PHI',     True, '>f8', (_NW,), None,            None, None), 
+        ('T3PHIERR',  True, '>f8', (_NW,), None,            None, None),
+    ]
+    
+    def get_obs_type(self, name, output_dim='data', flatten=False):
+
+        if name == 'T3AMP':
+            typ = 'N/A'
+        else:
+            typ = 'absolute'
+
+        return self._resize_data(typ, output_dim, flatten)
+
+class T3HDU1(
+        _T3HDU,
+        _DataHDU11,
+      ):
+    pass
+    
+
+class T3HDU2(
+        _T3HDU,
+        _DataHDU22,
+      ):
+    _COLUMNS = [
+        ('CORRINDX_T3AMP', False, '>i4', (), _u.is_strictpos, None, None), 
+        ('CORRINDX_T3PHI', False, '>i4', (), _u.is_strictpos, None, None),
+    ]
+
