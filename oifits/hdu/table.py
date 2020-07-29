@@ -62,6 +62,14 @@ class _OITableHDU(
                 header.get('EXTNAME', '') == extname and
                 header.get('OI_REVN', '') == oi_revn)
 
+    def append_lines(self, lines):
+      
+ 
+        merged_data = _np.hstack([self.data, lines]) 
+        merged = type(self)(data=merged_data, header=self.header)
+
+        return merged
+
     #def __init__(self, data=None, header=None, name=None, container=None,
     #         cols=None, names=None, **kwargs):
     #   
@@ -310,19 +318,80 @@ class _OITableHDU(
         cols = cls._get_spec_columns(required)
         return [c[0] for c in cols]
 
-    def __add__(self, hdu2):
+    def __add__(self, other):
 
-        nrows1 = len(self.data)
+        header = self.header.copy()
+        data1 = self.data
+
+        # receive lines or HDU? 
         if isinstance(hdu, _fits.BinTableHDU):
-            data2 = hdu.data2
+            data2 = other.data
+            header2 = other.header
         else:
-            data2 = hdu
+            data2 = other
+            header2 = None
+        
+        # merge headers if relevant
+        if header2 is not None:
+            for k,v,c in zip(header2, header2.values(), header.comments):
+                if k not in header:
+                    header.append(k, v, c)
+        
+        # merge columns and create zero-filled FITS table
+        nrows1 = len(data1)  
         nrows = nrows1 + len(data2)
-        merged = self.from_columns(self.columns, nrows=nrows)
-        for colname in self.columns.names:
-            merged[colname][nrows1:] = data2[colname]
+        merged_colnames = np.unique(data1.names, data2.names)
+        cols = [data1.columns[c] if c in data1.names else data2.columns[c] 
+                                            for c in merge_colnames]
+        merged = self.from_columns(cols, nrows=nrows, header=header, fill=True)
+
+        # copy data
+        for name in data1.names:
+            merged.data[name][:nrows1] = data1[name]
+        for name in data2.names:
+            merged.data[name][nrows1:] = data2[name]
         
         return merged
+    
+    def _merge(self, other, id_key, eq_keys, dist_keys, max_distance=0):
+
+        # Keep the IDs in the first merged table and find available new
+        # IDs in the second one
+        old_id1 = getattr(self, id_key)
+        nrows1 = len(old_id1)
+        old_id2 = getattr(other, id_key)
+        candidate_id2 = set(range(len(old_id1, old_id2))) - set(old_id1)
+        candidate_id2 = sorted(list(candidate_id2))
+
+        # Find if any row of the second table matches the first
+        #  * it must exactly match all eq_keys (e.g. TARGET)
+        #  * it must be close to coordinates in dist_keys (e.g. RA, DEC)
+        new_id2 = _np.zeros_like(old_id2)
+        kept_lines = [] 
+        i = 0
+        for j, row2 in enumerate(other.data):
+            eq = [self.data[k] == row2[k] for k in eq_keys]
+            coo = [self.data[k] - row2[k] for k in dist_keys]
+            same = _np.logical_and(eq, axis=1)
+            close = _np.linalg.norm(coo, axis=1) <= max_distance
+            where = np.argwhere(same*close)
+            if len(where): # if a match no new row
+                new_id2[j] = old_id1[where[0,0]]
+            else:
+                new_id2[j] = candidate_id2[i]
+                i += 1
+
+        # merge tables
+        kept_lines = _np.array(kept_lines)
+        merged = self._append_lines(other.data[kept_lines])
+        merged.data[id_key][nrows1:] = new_id2[kept_lines]
+
+        # maps old to new indices for the second table
+        map2 = {o: n for o, n in zip(old_id2, new_id2)}
+
+        return merged, map2
+
+
 
 class _OITableHDU1(_OITableHDU):
     _OI_REVN = 1

@@ -119,39 +119,17 @@ class _TargetHDU(_MustHaveTargetHDU):
                   )
         return _np.argwhere(indices)
                 
-    def _merge(self, hdu2, max_distance=10 * _milliarcsec):
+    def _merge(self, other, max_distance=10 * _milliarcsec):
+    
+        # how we decide two targets are the same
+        id_key = 'TARGET_ID' 
+        eq_keys = ['TARGET', 'EQUINOX'] # must be equal 
+        dist_keys = ['RA', 'DEC'] # may differ by max_distance
 
-        # re-index first HDU
-        old_id1 = self.TARGET_ID
-        new_id1 = _np.arange(1, 1 + len(old_id1)) 
-        
-        # append second HDU, but only lines that are different
-        i = 1 + len(old_id1)
-        old_id2 = hdu2.TARGET_ID
-        new_id2 = _np.zeros_like(old_id2)
-        kept_lines = []
-        for j, t2 in enumerate(hdu2.data):
-            where = hdu1._argwhere_same_target(t2, max_distance=max_distance)
-            if len(where):
-                new_id2[j] = old_id1[where[0,0]] 
-            else:
-                new_id2[j] = i
-                i += 1
-                kept_lines.append(j)
-        
-        # merged table
-        merged = self + hdu2.data[kept_lines] 
-        merged.TARGET_ID = _np.hstack(new_id1, new_id2[kept_lines])
-        
-        # maps old to new indices for each table
-        map1 = {o: n for o, n in zip(old_id1, new_id1)}
-        map2 = {o: n for o, n in zip(old_id2, new_id2)}
-        
-        return merged, map1, map2
+        return super()._merge_by_id(other, id_key, eq_keys, dist_keys,
+                                max_distance=max_distance)
+
  
-def _is_category(s):
-    return s in ['SCI', 'CAL']
-
 class TargetHDU1(
         _TargetHDU,
         _OITableHDU11, # OIFITS1, table rev. 1
@@ -168,5 +146,5 @@ class TargetHDU2(
     _COLUMNS = [
         ('TARGET',   True,  '<U32', (), _u.is_nonempty, None,  None),
         ('SPECTYP',  True,  '<U32', (), None,           None,  None),
-        ('CATEGORY', False, '<U3',  (), _is_category,   'SCI', None),
+        ('CATEGORY', False, '<U3',  (), _u.is_category, 'SCI', None),
     ]

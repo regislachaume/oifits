@@ -135,6 +135,17 @@ class _ArrayHDU(_MustHaveArrayHDU):
 
         return errors
 
+    def _merge(self, other, max_distance=0.05):
+
+        # how we decide two stations are the same
+        id_key = 'STA_INDEX'
+        eq_keys = ['STA_NAME', 'TEL_NAME'] # must be equal 
+        dist_keys = ['STA_XYZ'] # may differ by 5 cm
+        
+        return super()._merge(other, id_key, eq_keys, dist_keys,
+                                max_distance=max_distance)
+
+
 class ArrayHDU1(
         _ArrayHDU,
         _OITableHDU11, # OFITS1, rev. 1

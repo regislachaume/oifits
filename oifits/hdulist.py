@@ -129,7 +129,7 @@ When a fits file is opened a HDUList object is returned."""
         if not hdus:
             return None
         return hdus[0]
-    
+
     def get_arrayHDU(self, arrname):
         def same_arrname(h): return h.get_arrname() == arrname
         return self.get_HDU(_ArrayHDU, same_arrname)
@@ -167,22 +167,51 @@ When a fits file is opened a HDUList object is returned."""
 
         return tab
 
-    #def __add__(self, hdulist2):
-    #
-    #    hdulist1 = self
-    #    
-    #    # target ID
-    #    target1 = hdulist1.get_targetHDU()
-    #    target2 = hdulist2.get_targetHDU()
-    #    target, map1, map2 = target1._merge(target2)
-    # 
-    #    # data HDUs
-    #    data1 = [h._update_targetid(map1) for h in hdulist1.get_targetHDUs()]
-    #    data2 = [h._update_targetid(map2) for h in hdulist2.get_targetHDUs()]
-    #
-    #    # wavelengths HDUs
-    #    for wave2 in hdulist2.get_wavelengthHDUs():
-    #        pass 
+    def _append_arrayHDU(self, arrayhdu2):
+       
+        arrayhdus1 = self.get_arrayHDUs() 
+        arrnames1 = _np.array([h.get_arrname() for h in arrayhdus1])
+        arrname2 = arrayHDU.get_arrname()
+        if arrname2 not in arrnames1:
+            self.append(arrayHDU2)
+
+        i = np.argwhere(arrname2 == arnames1)[0,0]
+        arrayhdu1 = arrayhdus1[i]
+        dist = _np.linalg.norm(arrayhdu1.xyz() - arrayhdu2.xyz())
+        if dist > 10: # metres 
+            pass # rename
+            
+
+    def __add__(self, other):
+    
+        # merge target ID
+        target1 = self.get_targetHDU()
+        target2 = other.get_targetHDU()
+        target, map2 = target1._merge(target2)
+        for h in other.get_dataHDUs() + other.get_inspolHDUs():
+            h._update_targetid(map2) 
+
+        # merge arrayHDUs
+        arrayhdus1 = self.get_arrayHDUs()
+        arrayhdus2 = other.get_arrayHDU()
+
+        # rename same ARRNAME but different arrays (if more distant than
+        # 50 meters)
+        for arrayhdu1 in arrayhdus1:
+            arrname1 = arrayhdu1.get_arrname()
+            for arrayhdu2 in arrayhdus2:
+                arrname2 = arrayhdu2.get_arrname()
+                if (arrname2 == arrname1 and 
+                    _np.linalg.norm(arrayhdu2.xyz() - arrayhdu1.xyz()) > 50.):
+                    arrayhdu2.
+                    arrayhdu2.header['ARRNAME'] = new_arrname
+                    for h in other.get_data_HDUs():
+                        h.header['ARRNAME'] = new_arrname
+                             
+       # Merge wavelength HDUs
+       ...
+
+       # Merge all data HDUs sharing ARRNAME, INSNAME, CORRNAME...
 
     def update_extver(self):
 

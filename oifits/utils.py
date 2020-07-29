@@ -103,4 +103,7 @@ def is_strictpos(x):
 def is_pos(x):
     return type(x) in [int, float] and x >= 0
 
+def is_category(s):
+    return s in ['SCI', 'CAL']
+
 NW = 'NWAVE'
