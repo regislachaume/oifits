@@ -140,7 +140,7 @@ class _ArrayHDU(_MustHaveArrayHDU):
         # how we decide two stations are the same
         id_key = 'STA_INDEX'
         eq_keys = ['STA_NAME', 'TEL_NAME'] # must be equal 
-        dist_keys = ['STA_XYZ'] # may differ by 5 cm
+        dist_keys = ['STAXYZ'] # may differ by 5 cm
         
         return super()._merge(other, id_key, eq_keys, dist_keys,
                                 max_distance=max_distance)

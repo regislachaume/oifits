@@ -124,7 +124,7 @@ class _TargetHDU(_MustHaveTargetHDU):
         # how we decide two targets are the same
         id_key = 'TARGET_ID' 
         eq_keys = ['TARGET', 'EQUINOX'] # must be equal 
-        dist_keys = ['RA', 'DEC'] # may differ by max_distance
+        dist_keys = ['RAEP0', 'DECEP0'] # may differ by max_distance
 
         return super()._merge_by_id(other, id_key, eq_keys, dist_keys,
                                 max_distance=max_distance)

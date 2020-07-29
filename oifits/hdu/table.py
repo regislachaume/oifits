@@ -371,9 +371,10 @@ class _OITableHDU(
         i = 0
         for j, row2 in enumerate(other.data):
             eq = [self.data[k] == row2[k] for k in eq_keys]
-            coo = [self.data[k] - row2[k] for k in dist_keys]
-            same = _np.logical_and(eq, axis=1)
-            close = _np.linalg.norm(coo, axis=1) <= max_distance
+            coo = [(self.data[k] - row2[k]).T for k in dist_keys]
+            coo = np.reshape(coo, (-1, nrows1))
+            same = _np.logical_and(eq, axis=0)
+            close = _np.linalg.norm(coo, axis=0) <= max_distance
             where = np.argwhere(same*close)
             if len(where): # if a match no new row
                 new_id2[j] = old_id1[where[0,0]]
