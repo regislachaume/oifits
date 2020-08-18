@@ -31,23 +31,23 @@ def get_version():
 # Python package install
  
 setuptools.setup(
-    name='oifits',
+    name='pyoifits',
     version=get_version(),
     packages=setuptools.find_packages(),
     license='LICENSE.txt',
     author="Régis Lachaume",
     author_email="regis.lachaume@gmail.com",
-    description='Process astronomical data from European Southern Observatory',
+    description='OIFITS (Data Exchange Standard for Optical Interferometry, A&A 597, A8, 2017)',
     long_description=get_readme(),
     classifiers=[
         "Programming Language :: Python :: 3",
-        "Development Status :: 1 - Planning ",
+        "Development Status :: 2 - Pre-Alpha ",
         "Operating System :: OS Independent",
         "Intended Audience :: Science/Research",
         "Topic :: Scientific/Engineering :: Astronomy",
         "License :: Public Domain",
     ],
-    python_requires='>=3.6',
+    python_requires='>=3.8',
     install_requires=[
         "astropy>=4.0", 
         "numpy>=2.0",

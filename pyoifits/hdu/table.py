@@ -1,12 +1,7 @@
-
 from .. import utils as _u
+from .base import _ValidHDU
 
 from astropy.io import fits as _fits
-from astropy import table
-from numpy import ma
-
-import re
-import scipy
 import numpy as _np 
 
 
