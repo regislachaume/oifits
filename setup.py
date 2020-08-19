@@ -39,6 +39,7 @@ setuptools.setup(
     author_email="regis.lachaume@gmail.com",
     description='OIFITS (Data Exchange Standard for Optical Interferometry, A&A 597, A8, 2017)',
     long_description=get_readme(),
+    long_description_content_type='text/markdown',
     classifiers=[
         "Programming Language :: Python :: 3",
         "Development Status :: 2 - Pre-Alpha ",
