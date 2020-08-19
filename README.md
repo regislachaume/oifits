@@ -7,9 +7,9 @@ the standards
 
 ## Installation
 
-Site-wide installation will be performed with `sudo -H pip3 install oifits`.
+Site-wide installation will be performed with `sudo -H pip3 install oifits` on unix-like systems.
 
-At a user level, within a [https://docs.python.org/3/library/venv.html](virtual environment "venv package"), `pip3 install oifits`. 
+At a user level, within a [virtual environment](https://docs.python.org/3/library/venv.html "venv package"), `pip3 install oifits`. 
 
 ## Short example
 
