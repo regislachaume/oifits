@@ -13,7 +13,7 @@ At a user level, within a [virtual environment](https://docs.python.org/3/librar
 
 ## Short example
 
-Read and merge to OIFITS datasets and tranform to a standard `[astropy](https://www.astropy.org)` table.
+Read and merge to OIFITS datasets and tranform to a standard [`astropy`](https://www.astropy.org) table.
     
 ```python
 
