@@ -4,9 +4,12 @@ from .. import utils as _u
 class _T2HDU(_OITableHDU):
     
     _COLUMNS = [
-        ('STA_INDEX', True, '>i2', (2,), _u.is_strictpos, None, None),
-        ('UCOORD',    True, '>f8', (),   None,            None, "m"),
-        ('VCOORD',    True, '>f8', (),   None,            None, "m"),
+        ('STA_INDEX', True, '>i2', (2,), _u.is_strictpos, None, None,
+            'station indices in matching OI_ARRAY table'),
+        ('UCOORD',    True, '>f8', (),   None,            None, "m",
+            'u coordinate'),
+        ('VCOORD',    True, '>f8', (),   None,            None, "m",
+            'v coordinate'),
     ]
     
     def __getattr__(self, name):

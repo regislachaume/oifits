@@ -8,10 +8,14 @@ import numpy as np
 class _VisHDU(_T2HDU):
     _EXTNAME = 'OI_VIS'    
     _COLUMNS = [
-        ('VISAMP',    True, '>f8', (_NW,), None, None, None), 
-        ('VISAMPERR', True, '>f8', (_NW,), None, None, None),
-        ('VISPHI',    True, '>f8', (_NW,), None, None, None), 
-        ('VISPHIERR', True, '>f8', (_NW,), None, None, None),
+        ('VISAMP',    True, '>f8', (_NW,), None, None, None,
+            'visibility amplitude'), 
+        ('VISAMPERR', True, '>f8', (_NW,), None, None, None,
+            'uncertainty on visibility amplitude'),
+        ('VISPHI',    True, '>f8', (_NW,), None, None, None,
+            'phase'), 
+        ('VISPHIERR', True, '>f8', (_NW,), None, None, None,
+            'uncertainty on phase'),
     ]
 
 
@@ -36,22 +40,35 @@ class VisHDU2(
       ):
     
     _COLUMNS = [
-        ('CORRINDX_VISAMP',  False, '>i4', (),         _spos, None, None), 
-        ('CORRINDEX_VISPHI', False, '>i4', (),         _spos, None, None),
-        ('RVIS',             False, '>f8', (_NW,),     None,  None, None), 
-        ('RVISERR',          False, '>f8', (_NW,),     None,  None, None),
-        ('IVIS',             False, '>f8', (_NW,),     None,  None, None), 
-        ('IVISERR',          False, '>f8', (_NW,),     None,  None, None),
-        ('CORRINDX_RVIS',    False, '>i4', (),         _spos, None, None), 
-        ('CORRINDEX_IVIS',   False, '>i4', (),         _spos, None, None),
-        ('VISREFMAP',        False, '|b1', (_NW,_NW,), None,  None, None),
+        ('CORRINDX_VISAMP',  False, '>i4', (),         _spos, None, None,
+            'index on 1st amp. in matching OI_CORR matrix'), 
+        ('CORRINDEX_VISPHI', False, '>i4', (),         _spos, None, None,
+            'index on 1st phase in matching OI_CORR matrix'),
+        ('RVIS',             False, '>f8', (_NW,),     None,  None, None,
+            'real part of correlated flux'), 
+        ('RVISERR',          False, '>f8', (_NW,),     None,  None, None,
+            'uncertainty on real part of correlated flux'),
+        ('IVIS',             False, '>f8', (_NW,),     None,  None, None,
+            'imag. part of correlated flux'), 
+        ('IVISERR',          False, '>f8', (_NW,),     None,  None, None,
+            'uncertainty on imag. part of correlated flux'),
+        ('CORRINDX_RVIS',    False, '>i4', (),         _spos, None, None,
+            'index of 1st RVIS in matching OI_CORR matrix'), 
+        ('CORRINDEX_IVIS',   False, '>i4', (),         _spos, None, None,
+            'index of 1st IVIS in matching OI_CORR matrix'),
+        ('VISREFMAP',        False, '|b1', (_NW,_NW,), None,  None, None,
+            'reference channels for differential quantities'),
     ]
     
     _CARDS = [
-        ('AMPTYP',   False, _is_amptyp2,  None),
-        ('PHITYP',   False, _is_phityp2,  None),
-        ('AMPORDER', False, _u.is_posint, 0),
-        ('PHIORDER', False, _u.is_posint, 0),
+        ('AMPTYP',   False, _is_amptyp2,  None, 
+            'amplitude is absolute or differential'),
+        ('PHITYP',   False, _is_phityp2,  None, 
+            'phase is absolute or differential'),
+        ('AMPORDER', False, _u.is_posint, 0, 
+            'polynomial order in diff. amplitude'),
+        ('PHIORDER', False, _u.is_posint, 0, 
+            'polynomial order in diff. phase'),
     ]
     
     def get_reference_channel(self, shape='data', flatten=False):

@@ -34,7 +34,7 @@ class SequentialName(object):
         m = sorted(m)[0:n]
         return [cls(used[0], i) for i in m] 
 
-def merge_fits_headers(*headers):
+def merge_fits_headers(*headers, req_keys=[]):
     
     header = headers[0].copy()
 
@@ -51,7 +51,7 @@ def merge_fits_headers(*headers):
             elif value != header[name]:
                 if type(header[name]) == str:
                     header[name] = 'MULTI'
-                else:
+                elif name not in req_keys:
                     header.remove(name)
 
     return header
@@ -127,7 +127,6 @@ def _is_frame2(s):
 def _is_fovtype2(s):
     return s in ['FVWM', 'RADIUS']
 
-
 def is_zero(i):
     return i == 0
 
@@ -141,7 +140,7 @@ def is_nonempty(s):
     return type(s) is str and len(s)
 
 def is_num(s):
-    return type(s) is int or type(s) is float
+    return isinstance(s, (int, float))
 
 def is_one(s):
     return s == 1
@@ -159,22 +158,22 @@ def is_phityp_rev2(s):
     return s in ['absolute', 'differential']
 
 def is_strictposnum(i):
-    return type(i) in [int, float] and i > 0
+    return isinstance(i, (int, float)) and i > 0
 
 def is_posnum(i):
-    return type(i) is [int, float] and i >= 0
+    return isinstance(i, (int, float)) and i >= 0
 
 def is_posint(i):
-    return type(i) is int and i >= 0
+    return isinstance(i, int) and i >= 0
 
 def is_strictposint(i):
-    return type(i) is int and i > 0
+    return isinstance(i, int) and i > 0
 
 def is_strictpos(x):
-    return type(x) in [int, float] and x > 0
+    return isinstance(x, (int, float)) and x > 0
 
 def is_pos(x):
-    return type(x) in [int, float] and x >= 0
+    return isinstance(x, (int, float)) and x >= 0
 
 def is_category(s):
     return s in ['SCI', 'CAL']

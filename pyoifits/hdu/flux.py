@@ -26,16 +26,21 @@ class FluxHDU1(
       ):
     
     _CARDS = [
-        ('CALSTAT', True,  _is_calstat, None),
-        ('FOV',     False, _u.is_pos,   None),
-        ('FOVTYPE', False, _is_fovtype, None),
+        ('CALSTAT', True,  _is_calstat, None, 
+            'Flux is (C)alibrated or (U)ncalibrated'),
+        ('FOV',     False, _u.is_pos,   None, 'Field of view (arcsec)'),
+        ('FOVTYPE', False, _is_fovtype, None, 'Type of field of view'),
     ]
     
     _COLUMNS = [
-        ('FLUXDATA',          True,  '>f8', (_NW,), None, None, None),
-        ('FLUXERR',           True,  '>f8', (_NW,), None, None, None),
-        ('STA_INDEX',         False, '>i2', (),     None, None, None),
-        ('CORRINDX_FLUXDATA', False, '>i4', (),     None, None, None),
+        ('FLUXDATA',          True,  '>f8', (_NW,), None, None, None,
+            'Flux'),
+        ('FLUXERR',           True,  '>f8', (_NW,), None, None, None,
+            'Flux uncertainty'),
+        ('STA_INDEX',         False, '>i2', (),     None, None, None,
+            'Station index in matching OI_ARRAY table'),
+        ('CORRINDX_FLUXDATA', False, '>i4', (),     None, None, None,
+            'Index of 1st flux in matching OI_CORR matrix'),
     ]
     
     def get_obs_type(self, name, shape='data', flatten=False):

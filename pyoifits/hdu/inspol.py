@@ -67,20 +67,32 @@ class InspolHDU1(
         _OITableHDU21, # OIFITS2, table rev. 1
       ):
     _CARDS = [
-        ('NPOL',   True, _u.is_strictpos, None),
-        ('ORIENT', True, _u.is_nonempty,  None),
-        ('MODEL',  True, _u.is_nonempty,  None)
+        ('NPOL',   True, _u.is_strictpos, None, 
+            'number of polarisations'),
+        ('ORIENT', True, _u.is_nonempty,  None, 
+            'orientation of the Jones matrix'),
+        ('MODEL',  True, _u.is_nonempty,  None, 
+            'method used to determine the Jones matrix')
     ]
     _COLUMNS = [
-        ('TARGET_ID',  True, '>i2',  (),     _u.is_strictpos, None, None),
-        ('INSNAME',    True, '<U32', (),     None,            None, None), 
-        ('MJD_OBS',    True, '>f8',  (),     None,            None, "d"), 
-        ('MJD_END',    True, '>f8',  (),     None,            None, "d"),
-        ('JXX',        True, '>c8',  (_NW,), None,            None, None), 
-        ('JYY',        True, '>c8',  (_NW,), None,            None, None),
-        ('JXY',        True, '>c8',  (_NW,), None,            None, None), 
-        ('JYX',        True, '>c8',  (_NW,), None,            None, None),
-        ('STA_INDEX',  True, '>i2',  (),     None,            None, None),
+        ('TARGET_ID',  True, '>i2',  (),     _u.is_strictpos, None, None,
+            'target ID in matching OI_TARGET table'),
+        ('INSNAME',    True, '<U32', (),     None,            None, None,
+            'name of matching OI_WAVELENGTH table'), 
+        ('MJD_OBS',    True, '>f8',  (),     None,            None, "d",
+            'modified Julian day at start of observation'), 
+        ('MJD_END',    True, '>f8',  (),     None,            None, "d",
+            'modified Julian day at en of observation'),
+        ('JXX',        True, '>c8',  (_NW,), None,            None, None,
+            'Jones matrix element J_xx'), 
+        ('JYY',        True, '>c8',  (_NW,), None,            None, None,
+            'Jones matrix element J_xy'),
+        ('JXY',        True, '>c8',  (_NW,), None,            None, None,
+            'Jones matrix element J_yx'), 
+        ('JYX',        True, '>c8',  (_NW,), None,            None, None,
+            'Jones matrix element J_yy'),
+        ('STA_INDEX',  True, '>i2',  (),     None,            None, None,
+            'station index in matching OI_ARRAY table'),
     ]
 
     def __mod__(self, other):

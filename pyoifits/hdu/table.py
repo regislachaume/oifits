@@ -1,8 +1,9 @@
 from .. import utils as _u
-from .base import _ValidHDU
+from .base import _ValidHDU, _OIFITS1HDU, _OIFITS2HDU
 
 from astropy.io import fits as _fits
 import numpy as _np 
+import re as _re
 
 
 def _get_fits_col_dtype(name, col):
@@ -17,17 +18,22 @@ _fits_types = {
 }
 _fits_formats = {
     'i2': 'I', 'i4': 'J',
-    'f4': 'D', 'f8': 'E',
+    'f4': 'E', 'f8': 'D',
     'c8': 'C', 'c16': 'M',
     'i1': 'L', 'b1': 'L',
 }
 
 def _dtype_descr(t):
     t = t.strip("|<>") 
-    if t[0] not in 'SU':
+    if t[0] in 'SU':
+        len_ = int(t[1:])
+        type_ = 'string'
+    elif m := _re.match('(int|float|complex)([0-9]+)', t):
+        len_ = int(m.groups()[1]) // 8
+        type_ = m.groups()[0]
+    else:
         return _fits_types.get(t, '')
-    len_ = int(t[1:])
-    descr =  f"{len_}-byte{'s' if len_ > 1 else ''} string"
+    descr =  f"{len_}-byte{'s' if len_ > 1 else ''} {type_}"
     return descr
 
 def _dtype_to_fits(t, shape):
@@ -47,9 +53,32 @@ _InheritColumnDescription = _u.InheritConstantArray(
                                   ('name', 'U32'),  ('required', bool),
                                   ('type', object), ('shape', object),
                                   ('test', object), ('default', object), 
-                                  ('unit', 'U16'),
+                                  ('unit', 'U16'),  ('comment', 'U47'),
                               ]
                             )
+
+def _cast_column(col, coldesc):
+    val = col.array
+    fmt = _dtype_to_fits(coldesc['type'], _np.shape(val))
+    col = _fits.Column(name=col.name, array=col.array, format=fmt,
+                        unit=coldesc['unit'], null=col.null, dim=col.dim)
+    return col
+
+def _cast_columns(cols, colsdesc):
+    new_cols = []
+    for col in cols:
+        coldesc = colsdesc[colsdesc['name'] == col.name]
+        if len(coldesc):
+            coldesc = coldesc[0]
+            spec = _dtype_to_fits(coldesc['type'], _np.shape(col.array))
+            real = col.format
+            if spec != real:
+                try:
+                    col = _cast_column(col, coldesc)
+                except:
+                    pass
+        new_cols.append(col)
+    return new_cols
 
 def _minimal_fits_column(coldesc, shape, null=None):
     name = coldesc['name']
@@ -136,6 +165,71 @@ class _OITableHDU(
 
     _REFERENCE_KEY = None
 
+    def __init__(self, data=None, header=None, uint=False, ver=None, 
+                    character_as_bytes=False):
+        _fits.BinTableHDU.__init__(self, data=data, header=header, uint=uint,
+                    ver=ver, character_as_bytes=character_as_bytes)
+
+    def update(self):
+        
+        super().update()
+
+        header = self.header
+        header.set('EXTNAME', self._EXTNAME, 'OIFITS extension name')
+
+        columns = self._get_oi_columns()
+        comments = header.comments
+
+        for index, name in enumerate(self.columns.names, start=1):
+           
+            ttype = f"TTYPE{index}"
+            if not comments[ttype]: 
+                comment = f"name of column {index}"
+                if name in columns['name']:
+                    column = columns[columns['name'] == name][0]
+                    comment = column['comment']
+                comments[ttype] = comment
+           
+            tform = f"TFORM{index}"
+            if not comments[tform]:
+                comments[tform] = f"format for {name}"
+            
+            tunit = f"TUNIT{index}"
+            if tunit in header and not comments[tunit]: 
+                comments[tunit] = f"unit of {name}"
+            
+            tdim = f"TDIM{index}"
+            if tdim in header and not comments[tdim]:
+                comments[tdim] = f"dimension of {name}"
+        
+        self.add_datasum()
+        self.add_checksum()
+
+    @classmethod
+    def from_columns(cls, columns, header=None, nrows=0, fill=False,
+            character_as_bytes=False):
+
+        # we need to shape the columns to the right type (float type
+        # and/or string width)
+        oi_columns = cls._get_oi_columns(required=False)
+        columns = _cast_columns(columns, oi_columns)
+
+        return super().from_columns(columns, header=header, nrows=nrows,
+            fill=False, character_as_bytes=character_as_bytes) 
+
+    def to_version(self, n):
+
+        cls = type(self)
+
+        if cls._OI_VER == n:
+            return self.copy()
+
+        for newcls in type(self).__base__.__subclasses__():
+            if newcls._OI_VER == n:
+                break 
+         
+        return newcls.from_columns(self.columns)
+
     @classmethod
     def __init_subclass__(cls):
         super().__init_subclass__()
@@ -154,7 +248,6 @@ class _OITableHDU(
 
     def append_lines(self, lines):
       
- 
         merged_data = _np.hstack([self.data, lines]) 
         merged = type(self)(data=merged_data, header=self.header)
 
@@ -173,27 +266,6 @@ class _OITableHDU(
                 h1.get('ARRNAME', '') == h2.get('ARRNAME', '') and
                 h1.get('CORRNAME', '') == h2.get('CORRNAME', ''))
  
-
-    #def __init__(self, data=None, header=None, name=None, container=None,
-    #         cols=None, names=None, **kwargs):
-    #   
-    #    # A bit more flexibility to create from columns and/or data
-    #    dtype = None
-    #    if cols is not None:
-    #        if isinstance(cols[0], fits.column.Column):
-    #            names, cols = zip(*[(c.name, c.array) for c in cols])
-    #        if isinstance(names, str):
-    #            names = names.split(',')
-    #        dtype = [_get_fits_col_dtype(n, c) for n, c in zip(names, cols)]
-    #        data = list(zip(*cols))
-    #    
-    #    if len(data):
-    #        data = scipy.rec.array(data, dtype=dtype)
-    #        data = fits.BinTableHDU(data=data, **kwargs).data
-    #    
-    #    super().__init__(data=data, header=header, name=name, **kwargs)
-    #    self.container = container
-
     def _xmatch(self, name, refhdu, refname, concatenate=False):
         """Helper to find target or array properties from indices"""
         
@@ -317,27 +389,11 @@ class _OITableHDU(
             err = self.run_option(option, err_text, fix_text, fix)
             errors.append(err)
 
-        successful_cast = False
+        #cast_done = False
         if len(column_casts):
-            cols = []
-            for c in self.columns:
-                name = c.name
-                if name not in column_casts:
-                    cols.append(c)
-                    continue
-                coldesc = OI_COLUMNS[OI_COLUMNS['name'] == name][0]
-                try:
-                    val = self.data[name]
-                    fmt = _dtype_to_fits(coldesc['type'], _np.shape(val))
-                    col = _fits.Column(name=name, array=val, format=fmt,
-                        unit=coldesc['unit'], null=c.null, dim=c.dim)
-                    cols.append(col)
-                    successful_cast = True
-                except:
-                    cols.append(c)
-            if successful_cast:
-                self.data = _fits.FITS_rec.from_columns(cols)
-                self.update()
+            columns = _cast_columns(self.columns, OI_COLUMNS)
+            self.data = _fits.FITS_rec.from_columns(columns)
+            self.update()
 
         return errors
 
@@ -484,7 +540,8 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
 
         # Merge headers.  
         headers = [hdu.header for hdu in hdus]
-        header = _u.merge_fits_headers(*headers)
+        req_keys = cls._CARDS['name'][cls._CARDS['required']]
+        header = _u.merge_fits_headers(*headers, req_keys=req_keys)
         
         # Create an empty merged fits with the right number of rows,
         # then fill it.
@@ -542,22 +599,78 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
                 len(data1) == len(data2) and 
                 data1.dtype == data2.dtype and
                 (data1 == data2).all())
+    
+    @classmethod
+    def from_data(cls, version=None, fits_keywords={}, **columns):
+
+        if not hasattr(cls, '_OI_VER'):
+            if version is None:
+                version = getattr(cls, '_OI_VER', 2)
+            cls = cls.get_class(version=version)
+
+        # match case
+        fits_keywords = {k.upper(): v for k, v in fits_keywords.items()}
+        columns = {k.upper(): v for k, v in columns.items()}
+        
+        # Header
+        header = _fits.Header()
+        for card in cls._CARDS:
+            name = card['name']
+            comment = card['comment']
+            if name in fits_keywords:
+                header.set(name, fits_keywords[name], comment)
+                del fits_keywords[name]
+            elif card['required']:
+                if card['default'] is not None:
+                    header.set(name, card['default'], comment)
+        for name, value in fits_keywords.items():
+            if not isinstance(value, (tuple, list)):
+                value = [value]
+            header.set(name, *value)
+        
+        # Table
+        fcols = []
+        nrows = max(len(c) for c in columns)
+        for col in cls._COLUMNS:
+            name = col['name']
+            if name in columns:
+                array = columns[name]
+                del columns[name]
+            elif col['required']:
+                array = _np.array((nrows,), col['default'])
+                if array is None:
+                    continue
+            else:
+                continue
+            dtype = col['type']
+            unit = col['unit']
+            shape = _np.shape(array)
+            fmt = _dtype_to_fits(dtype, shape)
+            fcol = _fits.Column(format=fmt, unit=unit, array=array, name=name)
+            fcols.append(fcol)   
+        for name in columns:
+            array = _np.asarray(columns[col])
+            dtype = array.dtype
+            shape = array.shape
+            format = _dtype_to_fits(dtype, shape)
+            fcol = _fits.Column(array=array, format=format, name=name) 
+            fcols.appen(fcol)
+        
+        tab = super().from_columns(fcols, header=header)
+        return tab
+
 
 class _OITableHDU1(_OITableHDU):
     _OI_REVN = 1
-    _CARDS = [('OI_REVN', True, _u.is_one, 1)]
+    _CARDS = [('OI_REVN', True, _u.is_one, 1, 
+        '1st revision of this table in OIFITS format')]
 
 class _OITableHDU2(_OITableHDU):
     _OI_REVN = 2
-    _CARDS = [('OI_REVN', True, _u.is_two, 2)]
+    _CARDS = [('OI_REVN', True, _u.is_two, 2, 
+        '2nd revision of this table in OIFITS format')]
 
 _InitialisedLater = None
-
-class _OIFITS1HDU(_OITableHDU):
-    _OI_VER = 1
-
-class _OIFITS2HDU(_OITableHDU):
-    _OI_VER = 2
 
 class _OITableHDU11(
         _OIFITS1HDU,

@@ -1,4 +1,5 @@
 from .table import _OITableHDU, _OITableHDU21
+from .referenced import _Referenced
 from .. import utils as _u
 
 import numpy as _np
@@ -16,20 +17,29 @@ class _CorrHDUBase(_OITableHDU):
         return self._container.get_corrHDU(corrname)
 
 class _MayHaveCorrHDU(_CorrHDUBase):
-    _CARDS = [('CORRNAME', False, _u.is_nonempty, None)]
+    _CARDS = [('CORRNAME', False, _u.is_nonempty, None, 
+        'correlation name for cross-reference')]
 
 class _MustHaveCorrHDU(_CorrHDUBase):
-    _CARDS = [('CORRNAME', True,  _u.is_nonempty, None)]
+    _CARDS = [('CORRNAME', True,  _u.is_nonempty, None, 
+        'correlation name for cross-reference')]
 
-class _CorrHDU(_MustHaveCorrHDU):
+class _CorrHDU(_MustHaveCorrHDU,_Referenced):
     
     _EXTNAME = 'OI_CORR'
     _REFERENCE_KEY = 'CORRNAME'
 
+    _CARDS = [
+        ('NDATA', True,  _u.is_strictpos, None, 
+            'size of correlation matrix (NDATAxNDATA)'),
+    ] 
     _COLUMNS = [
-        ('IINDX', True, '<i4', (), _u.is_strictpos, None, None),
-        ('JINDX', True, '<i4', (), _u.is_strictpos, None, None), 
-        ('CORR',  True, '<f8', (), None,            None, None)
+        ('IINDX', True, '<i4', (), _u.is_strictpos, None, None,
+            '1st index (<= NDATA)'),
+        ('JINDX', True, '<i4', (), _u.is_strictpos, None, None,
+            '2nd index (<= NDATA)'), 
+        ('CORR',  True, '<f8', (), None,            None, None,
+            'correlation C[IINDX,JINDX]')
     ]
     
     def _verify(self, option='warn'):

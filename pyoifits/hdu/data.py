@@ -20,13 +20,17 @@ import numpy as np
 class _DataHDU(_OITableHDU):
     
     _CARDS = [
-        ('DATE-OBS', True, _u.is_nonempty, None),
+        ('DATE-OBS', True, _u.is_nonempty, None, 'Date at start of observation'),
     ]
     _COLUMNS = [
-        ('TARGET_ID', True, '>i2', (),         _u.is_strictpos, None,  None), 
-        ('MJD',       True, '>f8', (),         None,            None,  "d"),
-        ('INT_TIME',  True, '>f8', (),         None,            None,  "s"), 
-        ('FLAG',      True, '|b1', ('NWAVE',), None,            False, None),
+        ('TARGET_ID', True, '>i2', (),         _u.is_strictpos, None,  None,
+            'Target ID for cross-reference'), 
+        ('MJD',       True, '>f8', (),         None,            None,  "d",
+            'Modified Julian Day at start of observation'),
+        ('INT_TIME',  True, '>f8', (),         None,            None,  "s",
+            'Integration time'), 
+        ('FLAG',      True, '|b1', ('NWAVE',), None,            False, None,
+            'Flag for bad quality'),
     ]
     
     def get_obs_type(self, name, shape='data', flatten=False):
@@ -185,7 +189,8 @@ class _DataHDU1(
         _MustHaveWavelengthHDU,
         _OIFITS1HDU
       ):
-    _COLUMNS = [('TIME', True, '>f8', (), None, 0., "s")]
+    _COLUMNS = [('TIME', True, '>f8', (), None, 0., "s",
+                    'Seconds since UT at start of observation')]
         
 
 # OIFITS1 Table rev1
@@ -219,5 +224,6 @@ class _DataHDU22(
         _DataHDU2,
         _OITableHDU2
       ):
-    _COLUMNS = [('TIME', True, '>f8', (), _u.is_zero, 0., "s")]
+    _COLUMNS = [('TIME', True, '>f8', (), _u.is_zero, 0., "s",
+                    'For backwards compatibility only')]
 

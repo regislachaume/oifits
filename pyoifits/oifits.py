@@ -9,8 +9,9 @@ from .hdu.base import _ValidHDU
 from .hdu.table import _OITableHDU
 from .hdu.data import _DataHDU
 from .hdu.target import _TargetHDU, TargetHDU1, TargetHDU2
-from .hdu.array import _ArrayHDU, ArrayHDU1, ArrayHDU2
+from .hdu.array import _ArrayHDU, ArrayHDU1, ArrayHDU2, new_array_hdu
 from .hdu.wavelength import _WavelengthHDU, WavelengthHDU1, WavelengthHDU2
+from .hdu.referenced import _Referenced
 from .hdu.corr import _CorrHDU, CorrHDU1
 from .hdu.inspol import _InspolHDU, InspolHDU1
 from .hdu.t3 import T3HDU1, T3HDU2
@@ -48,24 +49,24 @@ def merge(*hdulists):
 
 def _merge(*hdulists, _inplace=False):
 
-    # We need to copy everything once, because merging will need to change
-    # a lot of stuff in the tables (TARGETID, STA_INDEX, ARRNAME, etc.)
-    # It's inefficient if some big tables can be merged after, but no
-    # easy cop out.
-    if not _inplace:
-        hdulists = [hdulist.copy() for hdulist in hdulists]
-
-    for hdulist in hdulists:
-        hdulist.verify('silentfix+ignore')
-
     # Use the latest OIFITS version used by the OIFITS to be merged
-    oirev = [getattr(hdulist, '_OI_VER', 0) for hdulist in hdulists]
-    cls = type(hdulists[_np.argmax(oirev)])
+    # We order them by newest version first.
+
+    oiver = [getattr(hdulist, '_OI_VER', 0) for hdulist in hdulists]
+    order = _np.argsort(oiver)[::-1]
+    hdulists = [hdulists[o] for o in order]
     
+    maxver = oiver[order[0]]
+    cls = type(hdulists[order[0]])
+
+    # Copy files if necessary
+    if _inplace:
+        hdulists = [hdulist.copy() for hdulist in hdulist]
+
     # A flat array containing all HDUs.  They keep knowledge of their
     # container.
     hdus = [hdu for hdulist in hdulists for hdu in hdulist]
-
+    
     # The processing steps:
     # * build a composite header from OIFITS primary headers
     # * convert non-void primary headers into image HDUs
@@ -85,13 +86,18 @@ def _merge(*hdulists, _inplace=False):
     # * merge interferometric data tables where possible
     _merge_OITableHDUs(hdus, cls=_DataHDU)
 
+    # * if some extensions are of the wrong version, convert them
+    for hdu in hdus:
+        if isinstance(hdu, _ValidHDU):
+            hdu._to_version(maxver)
+    
     # * update the primary HDU header inferring some keywords from 
     #   contents
     merged = cls(hdus)
-
     merged.update_primary_header()
     
     # * final tweaks
+    merged.verify('silentfix+ignore')
     merged.sort()
     merged.update_extver()
 
@@ -124,8 +130,7 @@ def _remove_equal_OITableHDUs(hdus, cls=_OITableHDU):
                 del hdus[j]     
 
 
-def _rename_conflicting_OITableHDUs(hdus, 
-        cls=(_WavelengthHDU, _ArrayHDU, _CorrHDU)):
+def _rename_conflicting_OITableHDUs(hdus, cls=_Referenced):
 
     for i, hdu1 in enumerate(hdus):
 
@@ -161,24 +166,26 @@ def _rename_conflicting_OITableHDUs(hdus,
 
         for index in indices:
 
-            refname2 = refnames2[index]
+            #refname2 = refnames2[index]
             refhdu2 = refhdus2[index]
             new_refname2 = str(new_refnames2.pop(0))
+            refhdu2.rename(new_refname2)
 
-            container = refhdu2.get_container()
-            if not container:
-                continue
+            #container = refhdu2.get_container()
+            #if not container:
+            #    continue
         
-            referrers = container.get_referrers(refhdu2)
-            for h in referrers:
-                h.header[refkey] = new_refname2
- 
-            refhdu2.header[refkey] = new_refname2
-            
-            if refkey == 'INSNAME':
-                for h in container.getInspolHDU():
-                    insname = h.data['INSNAME'] 
-                    h.data['INSNAME'][insname == refname2] = new_refname2
+            #referrers = container.get_referrers(refhdu2)
+            #for h in referrers:
+            #    h.header[refkey] = new_refname2
+            #
+            #refhdu2.header[refkey] = new_refname2
+            #
+            #if refkey == 'INSNAME':
+            #    for h in container.getInspolHDU():
+            #        insname = h.data['INSNAME'] 
+            #        h.data['INSNAME'][insname == refname2] = new_refname2
+
 
 def _merge_OITableHDUs(hdus, cls=_OITableHDU):
 
@@ -227,7 +234,7 @@ When a fits file is opened a HDUList object is returned."""
         name = type(self).__name__
         str_ = [str(h) for h  in self]
 
-        return f"<{name}: {primary} {' '.join(str_)}>"
+        return f"<{name}: {' '.join(str_)}>"
    
     def __init__(self, hdus=[], file=None, *, _copy_hdus=True):
     
@@ -253,11 +260,15 @@ When a fits file is opened a HDUList object is returned."""
     def _verify(self, option='warn'):
 
         errors = super()._verify(option) 
-       
+      
+        clsname = type(self).__name__
+ 
         # check OI extensions are valid names and fit the OIFITS version
         for hdu in self[1:]:
+            
             extname = hdu.header.get('EXTNAME', '')
             extrevn = hdu.header.get('OI_REVN', 0)
+            
             if extname[0:3] == 'OI_' and not isinstance(hdu, _OITableHDU):
                 err_text = f"Invalid OIFITS extention: {extname}"
                 fix_text = "Replaced underscore by dash"
@@ -266,6 +277,7 @@ When a fits file is opened a HDUList object is returned."""
                 err = self.run_option(option, err_text=err_text,
                                   fix_text=fix_text, fix=fix)
                 errors.append(err)
+              
             if hdu._OI_VER != self._OI_VER: 
                 err_text = f"Extension {extname} rev. {extrevn} in {clsname}"
                 err = self.run_option(option, err_text=err_text, fixable=False) 
@@ -349,18 +361,6 @@ When a fits file is opened a HDUList object is returned."""
     def __add__(self, other):
         return merge(self, other)
 
-    def get_referrers(self, hdu):
-
-        refkey = getattr(hdu, '_REFERENCE_KEY', None)
-        if refkey is None:
-            return []
-        
-        refval = hdu.header[refkey]
-        hdus = [h for h in self if h.header.get(refkey, '') == refval and h 
-               is not hdu]
-        return hdus
-        
-
     def update_extver(self):
 
         extnames = _np.unique(h.header.get('EXTNAME', None) for h in self[1:])
@@ -370,6 +370,17 @@ When a fits file is opened a HDUList object is returned."""
             if len(hdus) > 1:
                 for i, h in enumerate(hdus):
                     h.header['EXTVER'] = i + 1
+
+    def to_version(self, n):
+        
+        cls = type(self)
+        for newcls in type(self).__base__.__subclasses__():
+            if newcls._OI_VER == n:
+                break
+
+        hdulist = newcls([hdu.to_version(n) for hdu in self])
+
+        return hdulist 
 
     def update_primary_header(self):
         
@@ -431,7 +442,6 @@ When a fits file is opened a HDUList object is returned."""
                      'OBSERVER', 'TELESCOP']:
             if keyw not in header:
                 header[keyw] = 'UNKNOWN'
-
 
 class OIFITS1(_OIFITS):
     _OI_VER = 1

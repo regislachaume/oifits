@@ -80,21 +80,36 @@ class _TargetHDU(_MustHaveTargetHDU):
     
     _EXTNAME = 'OI_TARGET' 
     _COLUMNS = [
-        ('TARGET_ID',  True, '>i2',  (), _u.is_strictpos, None, None),
-        ('RAEP0',      True, '>f8',  (), None,            None, "deg"), 
-        ('DECEP0',     True, '>f8',  (), None,            None, "deg"), 
-        ('EQUINOX',    True, '>f4',  (), None,            None, "yr"),
-        ('RA_ERR',     True, '>f8',  (), None,            0.,   "deg"),  
-        ('DEC_ERR',    True, '>f8',  (), None,            0.,   "deg"),
-        ('SYSVEL',     True, '>f8',  (), None,            None, "m/s"), 
-        ('VELTYP',     True, '<U8',  (), _is_veltyp,      None, None), 
-        ('VELDEF',     True, '<U8',  (), _is_veldef,      None, None),
-        ('PMRA',       True, '>f8',  (), None,            0.,   "deg/yr"), 
-        ('PMDEC',      True, '>f8',  (), None,            0.,   "deg/yr"),
-        ('PMRA_ERR',   True, '>f8',  (), None,            0.,   "deg/yr"), 
-        ('PMDEC_ERR',  True, '>f8',  (), None,            0.,   "deg/yr"),
-        ('PARALLAX',   True, '>f4',  (), None,            None, "deg"), 
-        ('PARA_ERR',   True, '>f4',  (), None,            0.,   "deg"),
+        ('TARGET_ID',  True, '>i2',  (), _u.is_strictpos, None, None,
+            'target ID for cross-reference'),
+        ('RAEP0',      True, '>f8',  (), None,            None, "deg",
+            'right ascension at epoch'), 
+        ('DECEP0',     True, '>f8',  (), None,            None, "deg",
+            'declination at epoch'), 
+        ('EQUINOX',    True, '>f4',  (), None,            None, "yr",
+            'equinox and epoch'),
+        ('RA_ERR',     True, '>f8',  (), None,            0.,   "deg",
+            'uncertainty on right ascension'),  
+        ('DEC_ERR',    True, '>f8',  (), None,            0.,   "deg",
+            'uncertainty on declination'),
+        ('SYSVEL',     True, '>f8',  (), None,            None, "m/s",
+            'radial velocity'), 
+        ('VELTYP',     True, '<U8',  (), _is_veltyp,      None, None,
+            'reference frame for radial velocity'), 
+        ('VELDEF',     True, '<U8',  (), _is_veldef,      None, None,
+            'definition for radial velocity (e.g. RADIO)'),
+        ('PMRA',       True, '>f8',  (), None,            0.,   "deg/yr",
+            'proper motion in right ascension'), 
+        ('PMDEC',      True, '>f8',  (), None,            0.,   "deg/yr",
+            'proper motion in declination'),
+        ('PMRA_ERR',   True, '>f8',  (), None,            0.,   "deg/yr",
+            'uncertainty on proper motion in r.a.'), 
+        ('PMDEC_ERR',  True, '>f8',  (), None,            0.,   "deg/yr",
+            'uncertainty on proper motion in dec.'),
+        ('PARALLAX',   True, '>f4',  (), None,            None, "deg",
+            'parallax'), 
+        ('PARA_ERR',   True, '>f4',  (), None,            0.,   "deg",
+            'error on parallax'),
     ]
     
     ang_dist_max = 5e-9 # approx 1 mas
@@ -144,8 +159,10 @@ class TargetHDU1(
         _OITableHDU11, # OIFITS1, table rev. 1
       ):
     _COLUMNS = [
-        ('TARGET',  True, '<U16', (), _u.is_nonempty, None, None),
-        ('SPECTYP', True, '<U16', (), None,           None, None),
+        ('TARGET',  True, '<U16', (), _u.is_nonempty, None, None,
+            'name of the celestial object'),
+        ('SPECTYP', True, '<U16', (), None,           None, None,
+            'spectral type'),
     ]
 
 class TargetHDU2(
@@ -153,7 +170,10 @@ class TargetHDU2(
         _OITableHDU22, # OIFITS2, table rev. 2
       ):
     _COLUMNS = [
-        ('TARGET',   True,  '<U32', (), _u.is_nonempty, None,  None),
-        ('SPECTYP',  True,  '<U32', (), None,           None,  None),
-        ('CATEGORY', False, '<U3',  (), _u.is_category, 'SCI', None),
+        ('TARGET',   True,  '<U32', (), _u.is_nonempty, None,  None,
+            'name of the celestial object'),
+        ('SPECTYP',  True,  '<U32', (), None,           None,  None,
+            'spectral type'),
+        ('CATEGORY', False, '<U3',  (), _u.is_category, 'SCI', None,
+            'observation category: SCIence or CALibration'),
     ]

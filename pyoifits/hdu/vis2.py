@@ -6,8 +6,10 @@ from .wavelength import _NW
 class _Vis2HDU(_T2HDU):
     _EXTNAME = 'OI_VIS2'
     _COLUMNS = [
-        ('VIS2DATA', True, '>f8', (_NW,), None, None, None), 
-        ('VIS2ERR',  True, '>f8', (_NW,), None, None, None),
+        ('VIS2DATA', True, '>f8', (_NW,), None, None, None,
+            'squared visibility amplitude'), 
+        ('VIS2ERR',  True, '>f8', (_NW,), None, None, None,
+            'uncertaintly on squared visibility amplitude'),
     ]
     
     def get_obs_type(self, name, shape='data', flatten=False):
@@ -25,5 +27,6 @@ class Vis2HDU2(
         _DataHDU22,
       ):
     _COLUMNS = [
-        ('CORRINDX_VIS2DATA', False, '>i4', (), _u.is_strictpos, None, None),
+        ('CORRINDX_VIS2DATA', False, '>i4', (), _u.is_strictpos, None, None,
+            'index of 1st visib. in matching OI_CORR matrix'),
     ]

@@ -1,4 +1,6 @@
 from .table import _OITableHDU, _OITableHDU11, _OITableHDU22
+from .referenced import _Referenced
+
 from .. import utils as _u
 import numpy as _np
 
@@ -6,7 +8,8 @@ _NW = 'NWAVE'
 
 class _MustHaveWavelengthHDU(_OITableHDU):
     
-    _CARDS = [('INSNAME', True, _u.is_nonempty, None)]
+    _CARDS = [('INSNAME', True, _u.is_nonempty, None, 
+        'instrumental setup name for cross-reference')]
 
     def get_insname(self, shape='none', flatten=False, copy=True):
         x = self.header['INSNAME']
@@ -48,11 +51,12 @@ class _MustHaveWavelengthHDU(_OITableHDU):
         return self._resize_wave_data(band, shape, flatten)
 
 
-class _WavelengthHDU(_MustHaveWavelengthHDU):
+class _WavelengthHDU(_MustHaveWavelengthHDU,_Referenced):
     
     _EXTNAME = 'OI_WAVELENGTH'
     _REFERENCE_KEY = 'INSNAME'
-    _COLUMNS = [('EFF_WAVE', True, '>f4', (), _u.is_strictpos, None, "m")]
+    _COLUMNS = [('EFF_WAVE', True, '>f4', (), _u.is_strictpos, None, "m",
+        'effective wavelength')]
     
     def _diminfo(self):
 
@@ -68,16 +72,32 @@ class _WavelengthHDU(_MustHaveWavelengthHDU):
 
         return False
 
+    def rename(self, new_name):
+
+        old_name = self.header['INSNAME']
+        super().rename(new_name)
+        
+        container = self.get_container()
+        if container is None:
+            return
+
+        for h in h.get_inspolHDUs():
+            to_rename = h.data['INSNAME'] == oldname
+            h.data['INSNAME'][to_rename][...] = new_name
+
+
 class WavelengthHDU1(
         _WavelengthHDU,
         _OITableHDU11,
      ):
-    _COLUMNS = [('EFF_BAND', True, '>f4', (), _u.is_strictpos, None, "m")]
+    _COLUMNS = [('EFF_BAND', True, '>f4', (), _u.is_strictpos, None, "m",
+        'effective bandwidth')]
 
 
 class WavelengthHDU2(
         _WavelengthHDU,
         _OITableHDU22,
       ):
-    _COLUMNS = [('EFF_BAND', True, '>f4', (), _u.is_pos, None, "m")]
+    _COLUMNS = [('EFF_BAND', True, '>f4', (), _u.is_pos, None, "m",
+        'effective bandwidth')]
    

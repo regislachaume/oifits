@@ -27,4 +27,4 @@ data = data1 + data2
 tab = data.to_table()
 ```
 
-There is also a short [demo on github](https://github.com/loqueelvientoajuarez/oifits/blob/master/demo/intro.ipynb "Jupyter notebook demo").
+There is also a short [demo](https://github.com/loqueelvientoajuarez/oifits/blob/master/demo/intro.ipynb "Jupyter notebook demo").

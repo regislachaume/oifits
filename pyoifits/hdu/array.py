@@ -1,8 +1,10 @@
-
 from .table import _OITableHDU, _OITableHDU11, _OITableHDU22
+from .referenced import _Referenced
+from astropy.coordinates import EarthLocation as _EarthLocation
+from scipy.spatial.transform import Rotation as _rotation
 from .. import utils as _u
 
-__all__ = ["ArrayHDU1", "ArrayHDU2"]
+__all__ = ["ArrayHDU1", "ArrayHDU2", "new_array_hdu"]
 
 import numpy as _np
 
@@ -47,7 +49,12 @@ class _ArrayHDUBase(_OITableHDU):
         return arrname
 
     def get_arrayHDU(self):
-        return self._container.get_arrayHDU(arrname=self.get_arrname())
+        if self.header['EXTNAME'] == 'OI_ARRAY':
+            return self
+        container = self.get_container()
+        if container is None:
+            return None
+        return container.get_arrayHDU(arrname=self.get_arrname())
 
     def _verify(self, option='warn'):
 
@@ -59,7 +66,7 @@ class _ArrayHDUBase(_OITableHDU):
         arrname = self.header.get('ARRNAME', None) 
         
         if not arrname:
-            if sta_index:
+            if sta_index is not None and not isinstance(self, _ArrayHDU):
                 err_text = "STA_INDEX column present with no ARRNAME keyword"
                 err = self.run_option(option, err_text, fixable=False)
                 errors.appen(err)
@@ -99,31 +106,35 @@ class _ArrayHDUBase(_OITableHDU):
         return self is not other and self >= other
 
 class _MayHaveArrayHDU(_ArrayHDUBase):
-    _CARDS = [('ARRNAME', False, _u.is_nonempty, None)]
+    _CARDS = [('ARRNAME', False, _u.is_nonempty, None, 
+        'Name of telescope array for cross-reference')]
 
 class _MustHaveArrayHDU(_ArrayHDUBase):
-    _CARDS = [('ARRNAME', True, _u.is_nonempty, None)] 
+    _CARDS = [('ARRNAME', True, _u.is_nonempty, None, 
+        'Name of telescope array for cross-reference')] 
 
-class _ArrayHDU(_MustHaveArrayHDU):
+class _ArrayHDU(_MustHaveArrayHDU,_Referenced):
     
     _EXTNAME = 'OI_ARRAY'
     _REFERENCE_KEY = 'ARRNAME'
     _CARDS = [
-        ('ARRAYX', True, _u.is_num, None),
-        ('ARRAYY', True, _u.is_num, None),
-        ('ARRAYZ', True, _u.is_num, None),
+        ('ARRAYX', True, _u.is_num, None, 'X coordinate of array centre'),
+        ('ARRAYY', True, _u.is_num, None, 'Y coordinate of array centre'),
+        ('ARRAYZ', True, _u.is_num, None, 'Z coordinate of array centre'),
     ]
     _COLUMNS = [
-        ('TEL_NAME',  True, '<U8', (),   None,            None, None), 
-        ('STA_NAME',  True, '<U8', (),   None,            None, None), 
-        ('STA_INDEX', True, '>i2', (),   _u.is_strictpos, None, None),
-        ('DIAMETER',  True, '>f4', (),   _u.is_strictpos, None, "m"),
-        ('STAXYZ',    True, '>f8', (3,), None,            None, "m"),
+        ('TEL_NAME',  True, '<U16', (),   None,           None, None,
+                'telescope name'), 
+        ('STA_NAME',  True, '<U16', (),   None,           None, None,
+                'station name'), 
+        ('STA_INDEX', True, '>i2', (),   _u.is_strictpos, None, None,
+                'station index for cross-reference'),
+        ('DIAMETER',  True, '>f4', (),   _u.is_strictpos, None, "m",
+                'effective diameter of the aperture'),
+        ('STAXYZ',    True, '>f8', (3,), None,            None, "m",
+                'station coordinates relative to array centre'),
     ]
     
-    sta_dist_max = 0.1   # station within 10 cm -> same station
-    arr_dist_max = 10    # array centres within 10 m -> same array
-
     def _get_ins(self):
         name = self.arrname()
         m = re.match('[A-Za-z_]{1,20}', name)
@@ -167,6 +178,7 @@ class _ArrayHDU(_MustHaveArrayHDU):
         dist_max = self.get_container()._merge_array_distance
         return (self & other and
                 h1['ARRNAME'] == h2['ARRNAME'] and
+                h1['FRAME'] == h2['FRAME'] and
                 abs(h1['ARRAYX'] - h2['ARRAYX']) <= dist_max and
                 abs(h1['ARRAYY'] - h2['ARRAYY']) <= dist_max and
                 abs(h1['ARRAYZ'] - h2['ARRAYZ']) <= dist_max)
@@ -175,19 +187,75 @@ class _ArrayHDU(_MustHaveArrayHDU):
         return (not isinstance(other, _ArrayHDU) and
                 isinstance(other, _ArrayHDUBase) and
                 self.get_arrname() == other.get_arrname())
+
+    @classmethod
+    def from_data(cls, arrname, *, version=2, 
+            arrayxyz=None, lat=None, lon=None, alt=None, 
+            frame='GEOCENTRIC', ellipsoid='WGS84',
+            tel_name=None, sta_name=None, sta_index=None, diameter=None, 
+            staxyz=None, sta_enu=None,
+            fits_keywords={}, **columns):
+
+        geodetic = lon is not None and lat is not None and alt is not None
+        if geodetic:
+            if frame == 'GEOCENTRIC':
+                loc = _EarthLocation.from_geodetic(lon, lat, alt, ellipsoid)
+                arrayxyz = [loc.x.value, loc.y.value, loc.z.value]
+        if frame == 'SKY':
+            arrayxyz = [0., 0., 0.]
+
+        if lon is not None:
+            fits_keywords['LON-OBS'] = (lon, 'longitude of array centre (deg)')
+        if lat is not None:
+            fits_keywords['LAT-OBS'] = (lat, 'latitude of array centre (deg)')
+        if alt is not None:
+            fits_keywords['ALT-OBS'] = (alt, 'altitude of array centre (m)')
+   
+        if sta_enu is not None:
+            if frame == 'SKY':
+                staxyz = sta_enu
+            else:
+                if not geodetic:
+                    loc = _EarthLocation.from_geocentric(*arrayxyz, unit="m")
+                    loc = loc.to_geodetic(ellipsoid=ellipsoid)
+                    lon = loc.lon.value
+                    lat = loc.lat.value
+                rot = _rotation.from_euler('yz', [-lat, lon], degrees=True)
+                sta_une = _np.roll(sta_enu, 1, axis=1)
+                staxyz = rot.apply(sta_une)
+            
+        if sta_index is None:
+            sta_index = list(range(1, len(tel_name) + 1))
+        
+        fits_keywords = dict(arrname=arrname, frame=frame,
+            arrayx=arrayxyz[0], arrayy=arrayxyz[1], arrayz=arrayxyz[2],
+            **fits_keywords)
     
+        columns = dict(tel_name=tel_name, sta_name=sta_name, 
+            sta_index=sta_index, diameter=diameter, staxyz=staxyz,
+            **columns)
+        
+        return super().from_data(version=version, 
+                    fits_keywords=fits_keywords, **columns)
+
 class ArrayHDU1(
         _ArrayHDU,
         _OITableHDU11, # OFITS1, rev. 1
       ):
-    _CARDS = [('FRAME', True, _u._is_frame1, 'GEOCENTRIC')]
+    _CARDS = [('FRAME', True, _u._is_frame1, 'GEOCENTRIC', 
+        'coordinate frame for array centre and stations')]
 
 class ArrayHDU2(
         _ArrayHDU,
         _OITableHDU22, # OIFITS2, rev. 2
       ):
-    _CARDS = [('FRAME', True, _u._is_frame2, 'GEOCENTRIC')]
+    _CARDS = [('FRAME', True, _u._is_frame2, 'GEOCENTRIC', 
+        'coordinate frame for array centre and stations')]
     _COLUMNS = [
-        ('FOV',     False, '>f8', (), _u.is_strictpos, None, "arcsec"), 
-        ('FOVTYPE', False, '<U6', (), _u._is_fovtype2, None, None)
+        ('FOV',     False, '>f8', (), _u.is_strictpos, None, "arcsec",
+                'photometric field of view'), 
+        ('FOVTYPE', False, '<U6', (), _u._is_fovtype2, None, None,
+                'definition of the field of view')
     ]
+
+new_array_hdu = _ArrayHDU.from_data

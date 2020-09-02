@@ -8,6 +8,7 @@ _InheritCardDescription = _u.InheritConstantArray(
                             dtype=[
                                 ('name', 'U32'), ('required', bool),
                                 ('test', object), ('default', object),
+                                ('comment', 'U47')
                             ]
                           )
 
@@ -96,4 +97,44 @@ class _ValidHDU(
         id2 = id(other)
 
         return (arr1, ins1, corr1, mjd1, id1) <  (arr2, ins2, corr2, mjd2, id2)
+
+    def _to_version(self, version):
+       
+        if self._OI_VER == version:
+            return
+ 
+        self.__class__ = self.get_class(version=version)
+
+    def to_version(self, version):
+
+        new = self.copy()
+        new._to_version(version)
+        new._verify('silentfix+ignore')
+        
+        return new 
+
+    @classmethod
+    def get_class(cls, version=2):
+        """Get the class corresponding to OIFITS version"""
+        
+        if hasattr(cls, '_OI_VER'):
+            cls = cls.__base__
+        
+        subclasses = cls.__subclasses__()
+        for newcls in subclasses:
+            if getattr(newcls, '_OI_VER', None) == version:
+                break
+        else:
+            print(cls)
+            print([(s, getattr(s, '_OI_VER', None)) for s in subclasses])
+            error = f"Could not find a class maching {version=}"
+            raise RuntimeError(error)
+
+        return newcls
+
+class _OIFITS1HDU(_ValidHDU):
+    _OI_VER = 1
+
+class _OIFITS2HDU(_ValidHDU):
+    _OI_VER = 2
 
