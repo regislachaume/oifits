@@ -5,8 +5,6 @@ from .wavelength import _MustHaveWavelengthHDU, _NW
 from .data import _DataHDU
 from .. import utils as _u
 
-__all__ = ["FluxHDU1"]
-
 def _is_calstat(s):
     return s in ['U', 'C']
 def _is_fovtype(s):
@@ -64,4 +62,3 @@ class FluxHDU1(
         errors = super()._verify(option)
         if err:
             errors.append(err)
-

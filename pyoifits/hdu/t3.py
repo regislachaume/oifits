@@ -4,8 +4,6 @@ from .wavelength import _NW
 
 from .. import utils as _u
 
-__all__ = ["T3HDU1", "T3HDU2"]
-
 class _T3HDU(_OITableHDU):
     
     _EXTNAME = 'OI_T3'    
@@ -57,3 +55,4 @@ class T3HDU2(
             'index of 1st phase in matching OI_CORR matrix'),
     ]
 
+new_t3_hdu = _T3HDU.from_data

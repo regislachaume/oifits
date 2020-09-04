@@ -1,7 +1,7 @@
-from .table import _OITableHDU
+from .data import _DataHDU
 from .. import utils as _u
 
-class _T2HDU(_OITableHDU):
+class _T2HDU(_DataHDU):
     
     _COLUMNS = [
         ('STA_INDEX', True, '>i2', (2,), _u.is_strictpos, None, None,

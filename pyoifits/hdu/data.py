@@ -8,14 +8,10 @@ from .inspol import _MayHaveInspolHDU
 
 from .. import utils as _u
 
-from astropy.io import fits
-from astropy import table
-from numpy import ma
+from astropy import table as _table
+from numpy import ma as _ma
 import re as _re
-
-import scipy
-import copy
-import numpy as np
+import numpy as _np
 
 class _DataHDU(_OITableHDU):
     
@@ -44,7 +40,7 @@ class _DataHDU(_OITableHDU):
     
     def _update_targetid(self, index_map):
 
-        hdu = np.copy(self)
+        hdu = _np.copy(self)
         hdu.TARGET_ID = [index_map[id] for id in hdu.TARGET_ID]
         return hdu
     
@@ -71,7 +67,7 @@ class _DataHDU(_OITableHDU):
         def getf(n): return self.get_field(n, 'data', True, default=0)
         def gett(n): return self.get_obs_type(n, 'data', True)
         def resize(x): return self._resize_data(x, 'data', True)
-        def hstack(x): return ma.hstack(x)
+        def hstack(x): return _ma.hstack(x)
         
         for name in names:
             if name == 'value':
@@ -79,9 +75,9 @@ class _DataHDU(_OITableHDU):
             elif name == 'error':
                 col = hstack([getf(n) for n in err_names])
             elif name == 'observable':
-                col = np.hstack([resize(n) for n in obs_names])
+                col = _np.hstack([resize(n) for n in obs_names])
             elif name == 'type':
-                col = np.hstack([gett(n) for n in obs_names])
+                col = _np.hstack([gett(n) for n in obs_names])
             else:
                 col = hstack([getf(name)] * len(obs_names))
             cols.append(col)
@@ -118,7 +114,7 @@ class _DataHDU(_OITableHDU):
             else:
                 x = default
             x = self._resize_data(x, shape, flatten)
-            x = ma.masked_array(x, mask=not hasattr(self, name))
+            x = _ma.masked_array(x, mask=not hasattr(self, name))
             return x
 
         mask = self.FLAG
@@ -127,7 +123,7 @@ class _DataHDU(_OITableHDU):
         else:
             x = self._resize_data(default, shape)
             flag = flag | True
-        x = ma.masked_array(x, mask=mask)
+        x = _ma.masked_array(x, mask=mask)
         if flatten:
             x = x.ravel()
  
@@ -136,13 +132,13 @@ class _DataHDU(_OITableHDU):
     def get_reference_channels(self, shape='data', flatten=False):
 
         visref = self._resize_data(0, 'data', flatten)
-        return ma.masked_array(visref, mask=True)
+        return _ma.masked_array(visref, mask=True)
 
     def _to_table(self, full_uv=False):
 
         names = self._table_colnames(full_uv=full_uv)
         cols = self._table_cols(full_uv=full_uv)
-        return table.Table(cols, names=names)
+        return _table.Table(cols, names=names)
 
     @classmethod
     def _get_uvcoord_names(cls, full_uv=False):
@@ -180,6 +176,25 @@ class _DataHDU(_OITableHDU):
                     raise RuntimeError(txt)
 
         return self._merge_helper(*others)
+
+    @classmethod
+    def from_data(cls, insname, *, version=2, arrname=None, corrname=None,
+        target_id=None, sta_index=None, mjd=None, int_time=_np.nan, time=0.,
+        fits_keywords={}, **columns):
+
+        print(cls, insname)
+
+        assert target_id is not None, 'target_id must be specified'
+        assert sta_index is not None, 'sta_index must be specified'
+        assert mjd is not None, 'mjd must be specified'
+
+        fits_keywords = dict(arrname=arrname, insname=insname, 
+            corrname=corrname, **fits_keywords)
+        columns = dict(target_id=target_id, sta_index=sta_index, 
+                        mjd=mjd, time=time, int_time=int_time, **columns)
+
+        return super().from_data(version=2, fits_keywords=fits_keywords, 
+            **columns)
     
 # OIFITS1 Table 
 class _DataHDU1(

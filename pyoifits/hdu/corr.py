@@ -1,6 +1,7 @@
 from .table import _OITableHDU, _OITableHDU21
 from .referenced import _Referenced
 from .. import utils as _u
+from scipy import sparse as _sparse
 
 import numpy as _np
 
@@ -67,9 +68,30 @@ class _CorrHDU(_MustHaveCorrHDU,_Referenced):
         return (not isinstance(other, _CorrHDU) and
                 isinstance(other, _CorrHDUBase) and
                 self.get_corrname() == other.get_corrname())
+
+    @classmethod
+    def from_data(cls, corrname, corrmatrix, *, fits_keywords={}, **columns):
+
+        fits_keywords = dict(corrname=corrname, **fits_keywords)
+
+        # find non-zero elements in the lower triangle, note that
+        # indices start at one in OIFITS        
+        iindx, jindx, corr = _sparse.find(corrmatrix)
+        keep = iindx < jindx
+        corr = corr[keep]
+        iindx = iindx[keep]
+        jindx = jindx[keep]
+        iindx += 1
+        jindx += 1
+
+        columns = dict(iindx=iindx, jindx=jindx, corr=corr, **columns)        
+
+        super().from_data(fits_keywords=fits_keywords, **columns)
     
 class CorrHDU1(
         _CorrHDU,
         _OITableHDU21, # OIFITS2, table rev. 1
     ):
     pass
+
+

@@ -2,11 +2,10 @@ from .table import _OITableHDU, _OITableHDU11, _OITableHDU22
 from .. import utils as _u
 
 import numpy as _np
+from astroquery.simbad import Simbad as _Simbad
 
-
-__all__ = ["TargetHDU1", "TargetHDU2"]
-
-_milliarcsec = _np.deg2rad(1) / 3_600_000
+_deg = _np.deg2rad(1)
+_milliarcsec = _deg / 3_600_000
 
 class _MustHaveTargetHDU(_OITableHDU):
 
@@ -154,6 +153,103 @@ class _TargetHDU(_MustHaveTargetHDU):
                  
         return self._merge_helper(*others, id_name='TARGET_ID', equality=eq)
 
+    @classmethod
+    def from_data(cls, *, version=2, target_id=None, target=None, 
+        ra=None, dec=None, equinox=2000, ra_err=_np.nan, dec_err=_np.nan, 
+        sysvel=_np.nan, veltyp='BARYCENTRIC', veldef='OPTICAL',
+        pmra=None, pmdec=None, pmra_err=_np.nan, pmdec_err=_np.nan, 
+        parallax=_np.nan,
+        para_err=_np.nan, spectyp='UNKNOWN', category='SCI',
+        fits_keywords={}, **columns):
+
+        nrows = len(target)
+        if target_id is None:
+            target_id = list(range(1, nrows + 1))
+
+        columns = dict(target=target, target_id=target_id, 
+            raep0=ra, decep0=dec, equinox=equinox,
+            ra_err=ra_err, dec_err=dec_err, sysvel=sysvel, veltyp=veltyp,
+            veldef=veldef, pmra=pmra, pmdec=pmdec, pmra_err=pmra_err,
+            pmdec_err=pmdec_err, parallax=parallax, para_err=para_err,
+            spectyp=spectyp, category=category,
+            **columns)
+
+        return super().from_data(version=version, fits_keywords=fits_keywords,
+                        **columns)
+            
+    @classmethod
+    def from_simbad(cls, simbad_id, *, version=2, target_id=None,
+        category='SCI', fits_keywords={}, **columns):
+
+        simbad = _Simbad()
+        simbad.remove_votable_fields(*simbad.get_votable_fields()[1:])
+        simbad.add_votable_fields(
+            'ra(d;A;ICRS;J2000;2000)', 'dec(d;D;ICRS;J2000;2000)',
+            'coo_err_angle', 'coo_err_maja', 'coo_err_mina',
+            'plx', 'plx_error',
+            'rvz_radvel', 'rvz_wavelength',
+            'pmra', 'pmdec', 'pm_err_angle', 'pm_err_maja', 'pm_err_mina',
+            'sp',
+        )
+        tab = simbad.query_objects(simbad_id)
+
+        # target ID must be ascii, if not, pick simbad
+        main_id = tab['MAIN_ID']
+        target = [s if ascii(s)[1:-1] == s else m.decode() 
+                            for s, m in zip(simbad_id, main_id)]
+
+        def tolist(x, deflt=_np.nan):
+            x = [e.decode() if isinstance(e, bytes) else e for e in x.tolist()]
+            x = _np.array([deflt if e in ['', None] else e for e in x])
+            return x
+
+        def ellipse_to_xy_err(a, b, theta):
+            a2, b2 = a**2, b**2
+            cos2, sin2 = _np.cos(theta) ** 2, _np.sin(theta) ** 2
+            x = _np.sqrt(a2 * cos2 + b2 * sin2)
+            y = _np.sqrt(a2 * sin2 + b2 * cos2)
+            return x,y 
+
+        # coordinates and parallaxes
+        ra = tolist(tab['RA_d_A_ICRS_J2000_2000'])
+        dec = tolist(tab['DEC_d_D_ICRS_J2000_2000'])
+        a = _milliarcsec * tolist(tab['COO_ERR_MAJA'])
+        b = _milliarcsec * tolist(tab['COO_ERR_MINA'])
+        theta = _deg * tolist(tab['COO_ERR_ANGLE'])
+        ra_err, dec_err  = ellipse_to_xy_err(a, b, theta)
+        equinox = 2000.
+ 
+        parallax = _milliarcsec * tolist(tab['PLX_VALUE'])
+        para_err = _milliarcsec * tolist(tab['PLX_ERROR'])
+        
+        # velocity and proper motion
+        sysvel = 1e3 * tolist(tab['RVZ_RADVEL'])
+        veldef = tolist(tab['RVZ_WAVELENGTH'], 'OPTICAL')
+        veltyp = 'BARYCENTRIC'
+        
+        pmra = _milliarcsec * tolist(tab['PMRA'])
+        pmdec = _milliarcsec * tolist(tab['PMDEC'])
+        a = _milliarcsec * tolist(tab['PM_ERR_MAJA'])
+        b = _milliarcsec * tolist(tab['PM_ERR_MINA'])
+        theta = _deg * tolist(tab['PM_ERR_ANGLE'])
+        pmra_err, pmdec_err = ellipse_to_xy_err(a, b, theta)
+       
+        # spectral type
+        spectyp = tolist(tab['SP_TYPE'], 'UNKNOWN') 
+
+        return cls.from_data(version=version, target_id=target_id,
+                target=target, ra=ra, dec=dec, equinox=equinox,
+                ra_err=ra_err, dec_err=dec_err,
+                sysvel=sysvel, veltyp=veltyp, veldef=veldef,
+                pmra=pmra, pmdec=pmdec, pmra_err=pmra_err, pmdec_err=pmdec_err,
+                parallax=parallax, para_err=para_err, spectyp=spectyp,
+                category=category) 
+
+def _reshape_to_table(x, nrows):
+    if not _np.shape(x):
+        return _np.full(x, (nrows,))
+    return _np.asarray(x)
+
 class TargetHDU1(
         _TargetHDU,
         _OITableHDU11, # OIFITS1, table rev. 1
@@ -177,3 +273,6 @@ class TargetHDU2(
         ('CATEGORY', False, '<U3',  (), _u.is_category, 'SCI', None,
             'observation category: SCIence or CALibration'),
     ]
+
+new_target_hdu = _TargetHDU.from_data
+new_target_hdu_from_simbad = _TargetHDU.from_simbad

@@ -5,21 +5,19 @@ from numpy import ma as _ma
 import numpy as _np
 import re as _re 
 
+from .hdu import *
+from . import utils as _u
+
 from .hdu.base import _ValidHDU
 from .hdu.table import _OITableHDU
 from .hdu.data import _DataHDU
-from .hdu.target import _TargetHDU, TargetHDU1, TargetHDU2
-from .hdu.array import _ArrayHDU, ArrayHDU1, ArrayHDU2, new_array_hdu
-from .hdu.wavelength import _WavelengthHDU, WavelengthHDU1, WavelengthHDU2
+from .hdu.target import _TargetHDU
+from .hdu.array import _ArrayHDU
+from .hdu.wavelength import _WavelengthHDU
 from .hdu.referenced import _Referenced
-from .hdu.corr import _CorrHDU, CorrHDU1
-from .hdu.inspol import _InspolHDU, InspolHDU1
-from .hdu.t3 import T3HDU1, T3HDU2
-from .hdu.vis import VisHDU1, VisHDU2
-from .hdu.vis2 import Vis2HDU1, Vis2HDU2
-from .hdu.flux import FluxHDU1
-from .hdu.primary import _PrimaryHDU, PrimaryHDU1, PrimaryHDU2
-from . import utils as _u
+from .hdu.corr import _CorrHDU
+from .hdu.inspol import _InspolHDU
+from .hdu.primary import _PrimaryHDU
 
 
 def open(filename, mode='readonly', lazy_load_hdus=True, **kwargs):

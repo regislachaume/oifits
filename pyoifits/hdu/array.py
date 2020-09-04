@@ -4,8 +4,6 @@ from astropy.coordinates import EarthLocation as _EarthLocation
 from scipy.spatial.transform import Rotation as _rotation
 from .. import utils as _u
 
-__all__ = ["ArrayHDU1", "ArrayHDU2", "new_array_hdu"]
-
 import numpy as _np
 
 class _ArrayHDUBase(_OITableHDU):
@@ -230,7 +228,7 @@ class _ArrayHDU(_MustHaveArrayHDU,_Referenced):
         fits_keywords = dict(arrname=arrname, frame=frame,
             arrayx=arrayxyz[0], arrayy=arrayxyz[1], arrayz=arrayxyz[2],
             **fits_keywords)
-    
+   
         columns = dict(tel_name=tel_name, sta_name=sta_name, 
             sta_index=sta_index, diameter=diameter, staxyz=staxyz,
             **columns)

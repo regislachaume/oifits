@@ -321,7 +321,7 @@ class _OITableHDU(
         # Check column types
         column_casts = []
         for coldesc in OI_COLUMNS:
-            name, req, type_, shape, test, default, unit = coldesc
+            name, req, type_, shape, test, default, unit, comment = coldesc
             if name not in self.columns.names:
                 continue
             
@@ -601,7 +601,7 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
                 (data1 == data2).all())
     
     @classmethod
-    def from_data(cls, version=None, fits_keywords={}, **columns):
+    def from_data(cls, *, version=None, fits_keywords={}, **columns):
 
         if not hasattr(cls, '_OI_VER'):
             if version is None:
@@ -609,7 +609,8 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
             cls = cls.get_class(version=version)
 
         # match case
-        fits_keywords = {k.upper(): v for k, v in fits_keywords.items()}
+        fits_keywords = {k.upper(): v for k, v in fits_keywords.items()
+                                                    if v is not None}
         columns = {k.upper(): v for k, v in columns.items()}
         
         # Header
@@ -627,33 +628,43 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
             if not isinstance(value, (tuple, list)):
                 value = [value]
             header.set(name, *value)
-        
+    
+        def reshape_to_rows(x, nrows):
+            shape = _np.shape(x)
+            if not shape or shape[0] != nrows:
+                return _np.full((nrows, *shape), x)
+            else:
+                return _np.asarray(x)
+    
         # Table
         fcols = []
-        nrows = max(len(c) for c in columns)
+        nrows = max(len(_np.atleast_1d(c)) for c in columns.values())
+            
+            # official OIFITS columns
         for col in cls._COLUMNS:
             name = col['name']
-            if name in columns:
-                array = columns[name]
-                del columns[name]
-            elif col['required']:
-                array = _np.array((nrows,), col['default'])
-                if array is None:
+            if name not in columns:
+                if col['required']:
+                    columns[name] = col['default']
+                else:
                     continue
-            else:
-                continue
+            array = reshape_to_rows(columns[name], nrows)
+            del columns[name]
             dtype = col['type']
             unit = col['unit']
             shape = _np.shape(array)
             fmt = _dtype_to_fits(dtype, shape)
+            print(name, fmt, array)
             fcol = _fits.Column(format=fmt, unit=unit, array=array, name=name)
             fcols.append(fcol)   
+
+            # additional columns
         for name in columns:
-            array = _np.asarray(columns[col])
+            array = reshape_to_rows(columns[name], nrows)
             dtype = array.dtype
             shape = array.shape
-            format = _dtype_to_fits(dtype, shape)
-            fcol = _fits.Column(array=array, format=format, name=name) 
+            fmt = _dtype_to_fits(dtype, shape)
+            fcol = _fits.Column(array=array, format=fmt, name=name) 
             fcols.appen(fcol)
         
         tab = super().from_columns(fcols, header=header)

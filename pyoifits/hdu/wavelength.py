@@ -85,6 +85,15 @@ class _WavelengthHDU(_MustHaveWavelengthHDU,_Referenced):
             to_rename = h.data['INSNAME'] == oldname
             h.data['INSNAME'][to_rename][...] = new_name
 
+    @classmethod
+    def from_data(cls, insname, *, version=2, eff_wave=None, eff_band=None, 
+        fits_keywords={}, **columns):
+
+        fits_keywords = dict(insname=insname, **fits_keywords)
+        columns = dict(eff_wave=eff_wave, eff_band=eff_band, **columns)
+
+        return super().from_data(fits_keywords=fits_keywords, **columns)
+
 
 class WavelengthHDU1(
         _WavelengthHDU,
@@ -100,4 +109,5 @@ class WavelengthHDU2(
       ):
     _COLUMNS = [('EFF_BAND', True, '>f4', (), _u.is_pos, None, "m",
         'effective bandwidth')]
-   
+  
+new_wavelength_hdu = _WavelengthHDU.from_data 

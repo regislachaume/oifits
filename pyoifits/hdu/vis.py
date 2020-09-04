@@ -94,3 +94,5 @@ class VisHDU2(
         else:
             typ = 'correlated flux'
         return self._resize_data(typ, shape, flatten)
+
+new_vis_hdu = _VisHDU.from_data
