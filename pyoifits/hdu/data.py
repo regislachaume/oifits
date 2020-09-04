@@ -182,7 +182,6 @@ class _DataHDU(_OITableHDU):
         target_id=None, sta_index=None, mjd=None, int_time=_np.nan, time=0.,
         fits_keywords={}, **columns):
 
-        print(cls, insname)
 
         assert target_id is not None, 'target_id must be specified'
         assert sta_index is not None, 'sta_index must be specified'

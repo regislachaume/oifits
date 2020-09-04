@@ -654,7 +654,6 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
             unit = col['unit']
             shape = _np.shape(array)
             fmt = _dtype_to_fits(dtype, shape)
-            print(name, fmt, array)
             fcol = _fits.Column(format=fmt, unit=unit, array=array, name=name)
             fcols.append(fcol)   
 

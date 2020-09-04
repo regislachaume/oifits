@@ -36,7 +36,6 @@ class _Vis2HDU(_T2HDU):
             if not _np.shape(flag):
                 flag = _np.full(shape, flag)
         
-        print(flag)
         return super().from_data(insname, version=2, arrname=arrname, 
             corrname=corrname, target_id=target_id, mjd=mjd, int_time=int_time, 
             time=time, ucoord=ucoord, vcoord=vcoord, vis2data=vis2data, 
