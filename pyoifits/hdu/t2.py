@@ -20,4 +20,17 @@ class _T2HDU(_DataHDU):
             return self.data['VCOORD']
         
         return super().__getattr__(name)
-    
+
+    @classmethod
+    def from_data(cls, *, insname, arrname=None, corrname=None,
+        version=None, date=None, fits_keywords={}, **columns):
+
+        shape = self._get_columns_shape(**columns)
+        _u.store_default(columns, 'ucoord', 0., (shape[0],))
+        _u.store_default(columns, 'vcoord', 0., (shape[0],)) 
+        _u.store_default(columns, 'time', 0., (shape[0],))
+        _u.store_default(columns, 'int_time', 0., (shape[0],))
+         
+        return super().from_data(insname=insname, arrname=arrname, 
+            corrname=corrname, version=version, date=date,
+            fits_keywords=fits_keywords, columns=columns) 

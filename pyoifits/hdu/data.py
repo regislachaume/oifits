@@ -178,23 +178,24 @@ class _DataHDU(_OITableHDU):
         return self._merge_helper(*others)
 
     @classmethod
-    def from_data(cls, insname, *, version=2, arrname=None, corrname=None,
-        target_id=None, sta_index=None, mjd=None, int_time=_np.nan, time=0.,
-        fits_keywords={}, **columns):
+    def from_data(cls, *, insname, arrname=None, corrname=None,
+        version=None, date=None, fits_keywords={}, **columns):
 
-
-        assert target_id is not None, 'target_id must be specified'
-        assert sta_index is not None, 'sta_index must be specified'
-        assert mjd is not None, 'mjd must be specified'
-
+        shape = self._get_column_shape(**columns)
+        _u.store_default(columns, 'flag', default=False, shape=shape)  
+            
         fits_keywords = dict(arrname=arrname, insname=insname, 
-            corrname=corrname, **fits_keywords)
-        columns = dict(target_id=target_id, sta_index=sta_index, 
-                        mjd=mjd, time=time, int_time=int_time, **columns)
-
+                             corrname=corrname, **fits_keywords)
+       
+        if date is None:
+            mjd = min(columns['mjd'] - columns['int_time'] / 86400. / 2)
+            date = _Time(mjd, format='mjd').isot
+        fits_keywords = {'DATE-OBS': date, **fits_keywords}
+ 
         return super().from_data(version=2, fits_keywords=fits_keywords, 
             **columns)
-    
+
+
 # OIFITS1 Table 
 class _DataHDU1(
         _DataHDU, 

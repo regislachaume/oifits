@@ -599,6 +599,18 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
                 len(data1) == len(data2) and 
                 data1.dtype == data2.dtype and
                 (data1 == data2).all())
+
+    @classmethod
+    def _get_column_shape(cls, **columns):
+        
+        for col in cls.get_oi_columns(required=True):
+            if (name := col['name'] in columns and
+                shape := col['shape'] and
+                value := columns[name] is not None)
+            shape = _np.shape(value)
+            return shape
+
+        return None
     
     @classmethod
     def from_data(cls, *, version=None, fits_keywords={}, **columns):
@@ -612,7 +624,12 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
         fits_keywords = {k.upper(): v for k, v in fits_keywords.items()
                                                     if v is not None}
         columns = {k.upper(): v for k, v in columns.items()}
-        
+       
+        # prefix non-standard columns
+        oi_colnames = self.get_oi_columns(required=False)['name']
+        columns = {n: v else f"NS_{n}": v if n in oi_colnames 
+                    for n, v in columns.items()}
+ 
         # Header
         header = _fits.Header()
         for card in cls._CARDS:

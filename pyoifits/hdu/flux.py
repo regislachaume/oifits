@@ -62,3 +62,23 @@ class FluxHDU1(
         errors = super()._verify(option)
         if err:
             errors.append(err)
+
+    @classmethod
+    def from_data(cls, *, insname=None, arrname=None, corrname=None,
+        version=None, date=None, calstat='U', fov=0., fovtype='N/A',
+        fits_keywords={}, **columns):
+
+        shape = self._get_columns_shape(**columns)
+        _u.store_default(columns, 'int_time', 0., (shape[0],))
+        _u.store_default(columns, 'fluxerr', 0., shape)        
+
+        if calstat == 'U':
+            fits_keywords = dict(calstat=calstat, **fits_keywords)
+        else:
+            fits_keywords = dict(fov=fov, fovtype=fovtype,
+                calstat=calstat, **fits_keywords)
+
+        return super().from_data(insname=insname, arrname=arrname,
+            corrname=corrname, version=version, date=date,
+            fits_keywords={}, **columns):
+ 

@@ -40,6 +40,36 @@ class _PrimaryHDU(
         hdu = newcls(data=self.data, header=self.header)
         hdu.header['CONTENT'] = f"oifits{n}"
         return hdu
+    
+    def __init__(self, data=None, keywords={}):
+        
+        header = _fits.Header()
+        keywords = {k.upper(): v for k, v in keywords.items() if v is not None}
+
+        if 'content' in keywords:
+            del keywords['content']
+    
+        for card in self._CARDS:
+            name = card['name']
+            comment = card['comment']
+            if name in keywords:
+                value = keywords[name]
+                if isinstance(value, (list, tuple)):
+                    value, comment = value[0:2]
+                header.set(name, value, comment)
+                del keywords[name]
+            elif card['required']:
+                value = card['default']
+                if value is not None:
+                    header.set(name, value, comment)
+        
+        for name, value in keywords.items():
+            if not isinstance(value, (tuple, list)):
+                value = [value]
+            header.set(name, *value)
+        
+        super().__init__(data=data, header=header)
+                
 
 
 class PrimaryHDU1(
@@ -49,6 +79,8 @@ class PrimaryHDU1(
     _CARDS = [
         ('CONTENT', False, _u.is_oifits1, 'OIFITS1', 'format by Pauls et al. (2005), PASP 117,1125'),
     ]
+
+        
 
 class PrimaryHDU2(
         _PrimaryHDU,
