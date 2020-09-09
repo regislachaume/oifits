@@ -64,21 +64,21 @@ class FluxHDU1(
             errors.append(err)
 
     @classmethod
-    def from_data(cls, *, insname=None, arrname=None, corrname=None,
-        version=None, date=None, calstat='U', fov=0., fovtype='N/A',
-        fits_keywords={}, **columns):
+    def from_data(cls, *, arrname, fluxdata, calibrated=False,
+            fov=0., fovtype='FWHM', 
+            fits_keywords={}, **columns):
 
-        shape = self._get_columns_shape(**columns)
-        _u.store_default(columns, 'int_time', 0., (shape[0],))
+        shape = _np.shape(fluxdata)
         _u.store_default(columns, 'fluxerr', 0., shape)        
 
-        if calstat == 'U':
-            fits_keywords = dict(calstat=calstat, **fits_keywords)
+        if calibrated:
+            fits_keywords = dict(calstat='C', fov=fov, fovtype=fovtype,
+                                 **fits_keywords) 
         else:
-            fits_keywords = dict(fov=fov, fovtype=fovtype,
-                calstat=calstat, **fits_keywords)
+            fits_keywords = dict(calstat='U', **fits_keywords)
+            
+        columns = dict(fluxdata=fluxdata, **columns)
 
-        return super().from_data(insname=insname, arrname=arrname,
-            corrname=corrname, version=version, date=date,
-            fits_keywords={}, **columns):
+        return super().from_data(arrname=arrname, 
+                    fits_keywords=fits_keywords, **columns)
  

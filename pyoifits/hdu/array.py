@@ -187,7 +187,7 @@ class _ArrayHDU(_MustHaveArrayHDU,_Referenced):
                 self.get_arrname() == other.get_arrname())
 
     @classmethod
-    def from_data(cls, arrname, *, version=2, 
+    def from_data(cls, *, arrname, version=2, 
             arrayxyz=None, lat=None, lon=None, alt=None, 
             frame='GEOCENTRIC', ellipsoid='WGS84',
             tel_name=None, sta_name=None, sta_index=None, diameter=None, 

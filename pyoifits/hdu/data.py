@@ -179,21 +179,18 @@ class _DataHDU(_OITableHDU):
 
     @classmethod
     def from_data(cls, *, insname, arrname=None, corrname=None,
-        version=None, date=None, fits_keywords={}, **columns):
+        date=None, flag=False, fits_keywords={}, **columns):
 
-        shape = self._get_column_shape(**columns)
-        _u.store_default(columns, 'flag', default=False, shape=shape)  
-            
         fits_keywords = dict(arrname=arrname, insname=insname, 
                              corrname=corrname, **fits_keywords)
-       
+        columns = dict(flag=flag, **columns)
+
         if date is None:
             mjd = min(columns['mjd'] - columns['int_time'] / 86400. / 2)
             date = _Time(mjd, format='mjd').isot
         fits_keywords = {'DATE-OBS': date, **fits_keywords}
  
-        return super().from_data(version=2, fits_keywords=fits_keywords, 
-            **columns)
+        return super().from_data(fits_keywords=fits_keywords, **columns)
 
 
 # OIFITS1 Table 

@@ -179,3 +179,76 @@ def is_category(s):
     return s in ['SCI', 'CAL']
 
 NW = 'NWAVE'
+
+
+def store_default(columns, name, *, default, shape):
+    if name not in columns:
+        columns[name] = default
+    if _np.shape(columns[name]):
+        columns[name] = _np.full(shape, columns[name])
+
+
+def _get_fits_col_dtype(name, col):
+    col = asarray(col)
+    return (name, col.dtype.str, col.shape[1:])
+
+fits_types = {
+     'i2': '2-bytes int', 'i4': '4-bytes int',
+     'f4': '4-bytes float', 'f8': '8-bytes float',
+     'c8': '8-bytes complex', 'c16': '16-bytes complex',
+     'i1': 'boolean', 'b1': 'boolean'
+}
+fits_formats = {
+    'i2': 'I', 'i4': 'J',
+    'f4': 'E', 'f8': 'D',
+    'c8': 'C', 'c16': 'M',
+    'i1': 'L', 'b1': 'L',
+}
+
+
+def dtype_descr(t):
+    t = t.strip("|<>")
+    if t[0] in 'SU':
+        len_ = int(t[1:])
+        type_ = 'string'
+    elif m := re.match('(int|float|complex)([0-9]+)', t):
+        len_ = int(m.groups()[1]) // 8
+        type_ = m.groups()[0]
+    else:
+        return fits_types.get(t, '')
+    descr =  f"{len_}-byte{'s' if len_ > 1 else ''} {type_}"
+    return descr
+
+def dtype_to_fits(t, shape):
+    t = t.strip("|<>")
+    if t[0] in 'SU':
+        len_ = int(t[1:])
+        fmt = 'A'
+    else:
+        len_ = 1
+        fmt = fits_formats[t]
+    return f"{len_ * int(_np.prod(shape[1:]))}{fmt}"
+
+def fits_column(*, name=None, array=None, unit=None, shape=None, dtype=None,
+                    null=None, **kwarg):
+
+    if array is not None:
+        array = np.asarray(array, dtype=dtype)
+    if shape is None:
+        shape = array.shape
+
+    fmt = dtype_to_fits(array.dtype, shape)
+
+    dim = None
+    if len(shape) >= 3 - (fmt[-1] == 'A'):
+        dim  = shape[1:]
+        if fmt[-1] == 'A':
+            dim = (int(fmt[:-1]), *dim)
+        dim = str(dim)
+        dim = re.sub(' ', '', dim)
+
+    col = fits.Column(array=array, format=fmt, name=name, unit=unit, dim=dim,
+                null=null)
+    
+    return col
+

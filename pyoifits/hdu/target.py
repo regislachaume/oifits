@@ -154,10 +154,10 @@ class _TargetHDU(_MustHaveTargetHDU):
         return self._merge_helper(*others, id_name='TARGET_ID', equality=eq)
 
     @classmethod
-    def from_data(cls, *, version=2, target_id=None, target=None, 
-        ra=None, dec=None, equinox=2000, ra_err=_np.nan, dec_err=_np.nan, 
+    def from_data(cls, *, version=2, target_id=None, target, 
+        ra, dec, equinox=2000, ra_err=_np.nan, dec_err=_np.nan, 
         sysvel=_np.nan, veltyp='BARYCENTRIC', veldef='OPTICAL',
-        pmra=None, pmdec=None, pmra_err=_np.nan, pmdec_err=_np.nan, 
+        pmra=_np.nan, pmdec=_np.nan, pmra_err=_np.nan, pmdec_err=_np.nan, 
         parallax=_np.nan,
         para_err=_np.nan, spectyp='UNKNOWN', category='SCI',
         fits_keywords={}, **columns):

@@ -70,7 +70,7 @@ class _CorrHDU(_MustHaveCorrHDU,_Referenced):
                 self.get_corrname() == other.get_corrname())
 
     @classmethod
-    def from_data(cls, corrname, corrmatrix, *, fits_keywords={}, **columns):
+    def from_data(cls, *, corrname, corrmatrix, fits_keywords={}, **columns):
 
         fits_keywords = dict(corrname=corrname, **fits_keywords)
 

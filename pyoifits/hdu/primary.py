@@ -41,9 +41,8 @@ class _PrimaryHDU(
         hdu.header['CONTENT'] = f"oifits{n}"
         return hdu
     
-    def __init__(self, data=None, keywords={}):
+    def __init__(self, data=None, header=_fits.Header(), keywords={}):
         
-        header = _fits.Header()
         keywords = {k.upper(): v for k, v in keywords.items() if v is not None}
 
         if 'content' in keywords:
@@ -58,7 +57,7 @@ class _PrimaryHDU(
                     value, comment = value[0:2]
                 header.set(name, value, comment)
                 del keywords[name]
-            elif card['required']:
+            elif card['required'] and name not in header:
                 value = card['default']
                 if value is not None:
                     header.set(name, value, comment)

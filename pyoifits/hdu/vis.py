@@ -17,7 +17,18 @@ class _VisHDU(_T2HDU):
         ('VISPHIERR', True, '>f8', (_NW,), None, None, None,
             'uncertainty on phase'),
     ]
+    
+    @classmethod
+    def from_data(cls, *, visamp, visphi, fits_keywords={}, **columns):
 
+        columns = dict(visamp=visamp, visphi=visphi,  **columns)
+
+        shape = self._get_columns_shape(**columns)
+        for name in ['visamp', 'visphi', 'rvis', 'ivis']:
+            if name in columns:
+                _u.store_default(columns, f"{name}err", 0., shape)
+
+        return super().from_data(fits_keywords=fits_keywords, **columns)
 
 class VisHDU1(
         _VisHDU,
@@ -38,7 +49,6 @@ class VisHDU2(
         _VisHDU,
         _DataHDU22,
       ):
-    
     _COLUMNS = [
         ('CORRINDX_VISAMP',  False, '>i4', (),         _spos, None, None,
             'index on 1st amp. in matching OI_CORR matrix'), 
@@ -94,24 +104,5 @@ class VisHDU2(
         else:
             typ = 'correlated flux'
         return self._resize_data(typ, shape, flatten)
-
-    @classmethod
-    def from_data(cls, *, insname, arrname=None, corrname=None,
-        version=2, date=None,  fits_keywords={}, **columns):
-
-        assert visamp in columns, 'vis2data must be specified'
-        assert visphi in columns, 'vis2err must be specified'
-
-        shape =  self._get_columns_shape(**columns)
-        _u.store_default(columns, 'int_time', 0., (shape[0],))
-
-        shape = self._get_columns_shape(**columns)
-        for name in ['visamp', 'visphi', 'rvis', 'ivis']:
-            if name in columns:
-                _u.store_default(columns, f"{name}err", 0., shape)
-
-        return super().from_data(insname=insname, arrname=arrname,
-            corrname=corrname, date=date, fits_keywords=fits_keywords,
-            columns=columns)
 
 new_vis_hdu = _VisHDU.from_data

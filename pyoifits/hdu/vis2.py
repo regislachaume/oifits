@@ -19,10 +19,9 @@ class _Vis2HDU(_T2HDU):
         return self._resize_data('absolute', shape, flatten)
 
     @classmethod
-    def from_data(cls, *, insname, arrname=None, corrname=None,
-        version=None, date=date, fits_keywords={}, **columns):
+    def from_data(cls, *, vis2data, fits_keywords={}, **columns):
 
-        assert vis2data in columns, 'vis2data must be specified'
+        columns = dict(vis2data=vis2data, **columns)
 
         shape = self._get_columns_shape(**columns)
         _u.store_default(columns, 'vis2err', 0., shape)

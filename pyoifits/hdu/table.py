@@ -6,46 +6,7 @@ import numpy as _np
 import re as _re
 
 
-def _get_fits_col_dtype(name, col):
-    col = asarray(col)
-    return (name, col.dtype.str, col.shape[1:])
 
-_fits_types = {
-     'i2': '2-bytes int', 'i4': '4-bytes int',
-     'f4': '4-bytes float', 'f8': '8-bytes float',
-     'c8': '8-bytes complex', 'c16': '16-bytes complex',
-     'i1': 'boolean', 'b1': 'boolean'
-}
-_fits_formats = {
-    'i2': 'I', 'i4': 'J',
-    'f4': 'E', 'f8': 'D',
-    'c8': 'C', 'c16': 'M',
-    'i1': 'L', 'b1': 'L',
-}
-
-def _dtype_descr(t):
-    t = t.strip("|<>") 
-    if t[0] in 'SU':
-        len_ = int(t[1:])
-        type_ = 'string'
-    elif m := _re.match('(int|float|complex)([0-9]+)', t):
-        len_ = int(m.groups()[1]) // 8
-        type_ = m.groups()[0]
-    else:
-        return _fits_types.get(t, '')
-    descr =  f"{len_}-byte{'s' if len_ > 1 else ''} {type_}"
-    return descr
-
-def _dtype_to_fits(t, shape):
-    t = t.strip("|<>")
-    if t[0] in 'SU':
-        len_ = int(t[1:])
-        fmt = 'A'
-    else:
-        len_ = 1
-        fmt = _fits_formats[t]
-    return f"{len_ * int(_np.prod(shape[1:]))}{fmt}"
-    
 
 _InheritColumnDescription = _u.InheritConstantArray(
                               '_COLUMNS',
@@ -59,7 +20,7 @@ _InheritColumnDescription = _u.InheritConstantArray(
 
 def _cast_column(col, coldesc):
     val = col.array
-    fmt = _dtype_to_fits(coldesc['type'], _np.shape(val))
+    fmt = _u.dtype_to_fits(coldesc['type'], _np.shape(val))
     col = _fits.Column(name=col.name, array=col.array, format=fmt,
                         unit=coldesc['unit'], null=col.null, dim=col.dim)
     return col
@@ -70,7 +31,7 @@ def _cast_columns(cols, colsdesc):
         coldesc = colsdesc[colsdesc['name'] == col.name]
         if len(coldesc):
             coldesc = coldesc[0]
-            spec = _dtype_to_fits(coldesc['type'], _np.shape(col.array))
+            spec = _u.dtype_to_fits(coldesc['type'], _np.shape(col.array))
             real = col.format
             if spec != real:
                 try:
@@ -80,20 +41,6 @@ def _cast_columns(cols, colsdesc):
         new_cols.append(col)
     return new_cols
 
-def _minimal_fits_column(coldesc, shape, null=None):
-    name = coldesc['name']
-    dtype = coldesc['type']
-    unit = coldesc['unit']
-    fmt = _dtype_to_fits(dtype, shape)
-    dim = None
-    if len(shape) >= 1:
-        dim  = shape[1:]
-        if fmt[-1] == 'A':
-            dim = (int(fmt[:-1]), *dim) 
-        dim = str(dim)
-    array = _np.ndarray(shape, dtype=dtype)
-    col = _fits.Column(name=name, format=fmt, dim=dim, unit=unit) 
-    return col
 
 def _merge_fits_columns(oicolumns, *hdus):
     columns = []
@@ -111,7 +58,8 @@ def _merge_fits_columns(oicolumns, *hdus):
                     coldesc = oicolumns[is_oicolumn][0]
                     shape = _np.shape(c.array)[1:]
                     null = c.null
-                    col = _minimal_fits_column(coldesc, shape, null=null)
+                    col = _u.fits_column(shape=shape, null=null, **coldesc)
+                    # col = _minimal_fits_column(coldesc, shape, null=null)
                 else:
                     col = c
                 columns.append(c)
@@ -327,8 +275,8 @@ class _OITableHDU(
             
             # check the type
             dtype = self.data[name].dtype
-            spec = _dtype_descr(type_)
-            real = _dtype_descr(dtype.str)
+            spec = _u.dtype_descr(type_)
+            real = _u.dtype_descr(dtype.str)
             if spec != real:
                 err_txt = f"Column {name}: type must be {spec} but is {real}."
                 fix_txt = "Will try to fix."
@@ -604,14 +552,34 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
     def _get_column_shape(cls, **columns):
         
         for col in cls.get_oi_columns(required=True):
-            if (name := col['name'] in columns and
-                shape := col['shape'] and
-                value := columns[name] is not None)
-            shape = _np.shape(value)
-            return shape
+            if ((name := col['name'] in columns) and
+                (shape := col['shape']) and
+                (value := columns[name]) is not None):
+                shape = _np.shape(value)
+                return shape
 
-        return None
-    
+        raise RuntimeError('Cannot determine table shape from input')
+
+    @classmethod
+    def _guess_shape(cls, columns):
+
+        obs_names = cls.get_observable_names()
+        if len(obs_names):
+            for obs_name in obs_names:
+                if obs_name in columns:
+                    shape = _np.shape(columns[obs_name])
+                    print(f"{shape=}")
+                    return shape
+            raise RuntimeError('cannot guess shape from data')
+        
+        oi_columns = cls._get_oi_columns()
+        for name in oi_columns['name']:
+            if name in columns:
+                shape = _np.shape(columns[name])
+                print(f"{shape=}")
+                return shape
+        raise RuntimeError('cannot guess shape from data')
+         
     @classmethod
     def from_data(cls, *, version=None, fits_keywords={}, **columns):
 
@@ -620,14 +588,14 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
                 version = getattr(cls, '_OI_VER', 2)
             cls = cls.get_class(version=version)
 
-        # match case
+        # FITS keywords and column names are upper case 
         fits_keywords = {k.upper(): v for k, v in fits_keywords.items()
                                                     if v is not None}
         columns = {k.upper(): v for k, v in columns.items()}
        
         # prefix non-standard columns
-        oi_colnames = self.get_oi_columns(required=False)['name']
-        columns = {n: v else f"NS_{n}": v if n in oi_colnames 
+        oi_colnames = cls._get_oi_columns(required=False)['name']
+        columns = {n if n in oi_colnames else f"NS_{n}": v
                     for n, v in columns.items()}
  
         # Header
@@ -646,17 +614,27 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
                 value = [value]
             header.set(name, *value)
     
-        def reshape_to_rows(x, nrows):
-            shape = _np.shape(x)
-            if not shape or shape[0] != nrows:
-                return _np.full((nrows, *shape), x)
-            else:
-                return _np.asarray(x)
-    
-        # Table
+        # Guess shape
+        shape = cls._guess_shape(columns)
+        nrows = shape[0]
+
+        # Guess errors from data    
+        obs_names = cls.get_observable_names() 
+        err_names = cls.get_error_names()
+        for obs, err in zip(obs_names, err_names):
+            if obs in columns:
+                if err not in columns:
+                    columns[err] = 0.
+                if not _np.shape(columns[err]):
+                    columns[err] = _np.full(shape, columns[err])
+
         fcols = []
-        nrows = max(len(_np.atleast_1d(c)) for c in columns.values())
-            
+
+        def full(s, x):
+            if _np.shape(x)[:len(shape)] == s:
+                return _np.asarray(x)
+            return _np.full(s, x)
+
             # official OIFITS columns
         for col in cls._COLUMNS:
             name = col['name']
@@ -665,23 +643,28 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
                     columns[name] = col['default']
                 else:
                     continue
-            array = reshape_to_rows(columns[name], nrows)
+            if name in [*obs_names, *err_names, 'FLAG']:
+                new_shape = shape
+            else:
+                new_shape = (nrows,)
+            array = full(new_shape, columns[name]) 
             del columns[name]
-            dtype = col['type']
-            unit = col['unit']
-            shape = _np.shape(array)
-            fmt = _dtype_to_fits(dtype, shape)
-            fcol = _fits.Column(format=fmt, unit=unit, array=array, name=name)
-            fcols.append(fcol)   
+            fcol = _u.fits_column(array=array, **col)
+            fcols.append(fcol)
+
+            # dtype = col['type']
+            # unit = col['unit']
+            # fmt = _dtype_to_fits(dtype, new_shape)
+            # fcol = _fits.Column(format=fmt, unit=unit, array=array, name=name)
+            # fcols.append(fcol)   
 
             # additional columns
-        for name in columns:
-            array = reshape_to_rows(columns[name], nrows)
-            dtype = array.dtype
-            shape = array.shape
-            fmt = _dtype_to_fits(dtype, shape)
-            fcol = _fits.Column(array=array, format=fmt, name=name) 
-            fcols.appen(fcol)
+        for name, array in columns.items():
+            fcol = _u.fits_column(array, name=name)
+            fcols.append(fcol)
+            # fmt = _dtype_to_fits(array.dtype, array.shape)
+            # fcol = _fits.Column(array=array, format=fmt, name=name) 
+            # fcols.appen(fcol)
         
         tab = super().from_columns(fcols, header=header)
         return tab

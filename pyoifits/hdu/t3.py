@@ -38,31 +38,24 @@ class _T3HDU(_OITableHDU):
         return self._resize_data(typ, shape, flatten)
 
     @classmethod
-    def from_data(cls, *, insname, arrname=None, corrname=None,
-        version=2, fits_keywords={}, **columns):
+    def from_data(cls, *, t3phi, fits_keywords={}, **columns):
 
-        assert 't3phi' in columns, 't3phi must be specified'
-   
         shape = self._get_columns_shape(**columns)
         if t3amp not in 'columns':
             _u.store_default(columns, 't3amp', _np.nan, shape) 
             _u.store_default(columns, 't3amperr', _np.nan, shape) 
         else:
             _u.store_default(columns, 't3amperr', 0., shape)
-        if t3phi in 'columns':
-            _u.store_default(columns, 't3phierr', 0., shape)
+        _u.store_default(columns, 't3phierr', 0., shape)
 
         _u.store_default(columns, 'u1coord', 0., (shape[0],))
         _u.store_default(columns, 'v1coord', 0., (shape[0],))
         _u.store_default(columns, 'u2coord', 0., (shape[0],))
         _u.store_default(columns, 'v2coord', 0., (shape[0],))
-        _u.store_default(columns, 'time', 0., (shape[0],))
-        _u.store_default(columns, 'int_time', 0., (shape[0],))
 
         return super().from_data(insname=insname, arrname=arrname,
             corrname=corrname, fits_keywords=fits_keywords,
             columns=columns)
-
 
 class T3HDU1(
         _T3HDU,
@@ -81,5 +74,11 @@ class T3HDU2(
         ('CORRINDX_T3PHI', False, '>i4', (), _u.is_strictpos, None, None,
             'index of 1st phase in matching OI_CORR matrix'),
     ]
+
+    @classmethod
+    def from_data(cls, *, arrname, fits_keywords={}, **columns):
+
+        return super().from_columns(arrname=arrname,
+                        fits_keywords=fits_keywords, **columns)
 
 new_t3_hdu = _T3HDU.from_data

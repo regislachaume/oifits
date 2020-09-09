@@ -22,8 +22,7 @@ class _T2HDU(_DataHDU):
         return super().__getattr__(name)
 
     @classmethod
-    def from_data(cls, *, insname, arrname=None, corrname=None,
-        version=None, date=None, fits_keywords={}, **columns):
+    def from_data(cls, *, fits_keywords={}, **columns):
 
         shape = self._get_columns_shape(**columns)
         _u.store_default(columns, 'ucoord', 0., (shape[0],))
