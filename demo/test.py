@@ -8,14 +8,9 @@ pyoifits.set_merge_settings(station_distance=1e9, array_distance=1e9)
 
 oifits1 = pyoifits.open("test1.fits")
 oifits2 = pyoifits.open("test2.fits")
-oifits = oifits1 + oifits2
-arr = oifits1[1]
 
-tel = list(arr.TEL_NAME)
-sta = list(arr.STA_NAME)
-index = list(arr.STA_INDEX)
-diameter = list(arr.DIAMETER)
-xyz = [list(a) for a in arr.STAXYZ]
+
+oifits = oifits1 + oifits2
 
 # WGS coordinates of nominal VLTI centre  and nominal station positions.
 # (InterfaceControl Document between VLTI and its Instruments (Part I)
@@ -57,6 +52,7 @@ vis2err = [[0.05, 0.05, 0.05]] * 12
 mjd = np.linspace(58880, 58880.2, 12)
 
 vis2 = pyoifits.new_vis2_hdu(insname=insname, arrname=arrname, mjd=mjd, 
+        ucoord=0., vcoord=0.,
         target_id=target_id, sta_index=sta_index, vis2data=vis2data, 
         vis2err=vis2err)
 
