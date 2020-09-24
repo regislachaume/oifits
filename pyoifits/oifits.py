@@ -7,6 +7,7 @@ import re as _re
 
 from .hdu import *
 from . import utils as _u
+from . import fitsutils as _fu
 
 from .hdu.base import _ValidHDU
 from .hdu.table import _OITableHDU
@@ -21,12 +22,27 @@ from .hdu.primary import _PrimaryHDU
 
 
 def open(filename, mode='readonly', lazy_load_hdus=True, **kwargs):
+    """
+
+Open an OIFITS file.
+
+Arguments
+---------
+
+filename (str)
+    File name
+mode (str, optional, default: 'readonly')
+    Read mode
+lazy_load_hdus (bool, optional, default: True)
+    Whether to only load HDUs if needed
+
+    """
     # we need to read the primary HDU to see which FITS version it is
     if mode == 'ostream':
         cls = OIFITS2
     else:
         with _fits.open(filename, lazy_load_hdus=True) as hdulist:
-            if list.__len__(hdulist): # len(h) loads all HDUs
+            if list.__len__(hdulist): # len(h) would load all HDUs
                 content = hdulist[0].header.get('CONTENT', '')
                 cls = OIFITS2 if content == 'OIFITS2' else OIFITS1
             else:
@@ -35,15 +51,35 @@ def open(filename, mode='readonly', lazy_load_hdus=True, **kwargs):
     return hdus
 
 def openlist(filenames):
+    """
 
+Open a list of OIFITS files and merge them.
+
+Arguments
+---------
+
+filenames (str × N)
+    File names
+
+    """
     hdulists = [open(f, lazy_load_hdus=False) for f in filenames]
     hdulist = _merge(*hdulists, _inplace=True)
 
     return hdulist
 
 def merge(*hdulists):
+    """
 
-   return _merge(*hdulists, _inplace=False)     
+Merge several OIFITS.
+
+Arguments
+---------
+
+hdulists1, hdulist2, ...
+    OIFITS objects 
+
+    """
+    return _merge(*hdulists, _inplace=False)     
 
 def _merge(*hdulists, _inplace=False):
 
@@ -58,8 +94,8 @@ def _merge(*hdulists, _inplace=False):
     cls = type(hdulists[order[0]])
 
     # Copy files if necessary
-    if _inplace:
-        hdulists = [hdulist.copy() for hdulist in hdulist]
+    if not _inplace:
+        hdulists = [hdulist.copy() for hdulist in hdulists]
 
     # A flat array containing all HDUs.  They keep knowledge of their
     # container.
@@ -105,7 +141,7 @@ def _process_primaryHDUs(hdus):
     
     # merge primary headers of OIFITs primary HDUs 
     headers = [hdu.header for hdu in hdus if isinstance(hdu, _PrimaryHDU)]
-    header = _u.merge_fits_headers(*headers)
+    header = _fu.merge_fits_headers(*headers)
     hdus[0].header = header
     # delete void OIFIT Primary headers and convert others to images
     for i in range(len(hdus)-1, 0, -1):
@@ -203,23 +239,42 @@ def _merge_OITableHDUs(hdus, cls=_OITableHDU):
             hdus[i] = hdus[i].merge(*mergeable)
             for j in where_mergeable[::-1]:
                 del hdus[j]
-    
-def set_merge_settings(*, station_distance=0.1, array_distance=10, 
-       target_distance=2.5e-8, target_name_match=False):
-        _OIFITS._merge_station_distance = station_distance
-        _OIFITS._merge_array_distance = array_distance
-        _OIFITS._merge_target_distance = target_distance
-        _OIFITS._merge_target_name_match = target_name_match
-
+   
 class _OIFITS(_fits.HDUList):
-    """Top-level class of Optical Interferometry FITS format.
-When a fits file is opened a HDUList object is returned."""
 
     _merge_station_distance = 0.1    # 0.1 m
     _merge_array_distance = 10       # 10 m
     _merge_target_distance = 2.5e-8  # ~0.005 mas 
     _merge_target_name_match = False # allow different target designations.
 
+
+    @staticmethod
+    def set_merge_settings(*, station_distance=0.1, array_distance=10, 
+           target_distance=2.5e-8, target_name_match=False):
+        """
+
+Set the default behaviour when merging several OIFITS objects
+
+Arguments
+---------
+
+station_distance (float, default: 0.1)
+    Maximum distance (m) for stations to be considered the same
+array_distance (float, default: 10)
+    Maxiumum distance (m) for array centres to be considered from
+    the same array
+target_distance (float, default: 2.5e-8 i.e. 5 mas)
+    Maximum distance (deg) for two targets to be considered the
+    same one
+target_name_match (bool, default: False)
+    Whether target names must match exactly to be considered the
+    same one
+
+        """
+        _OIFITS._merge_station_distance = station_distance
+        _OIFITS._merge_array_distance = array_distance
+        _OIFITS._merge_target_distance = target_distance
+        _OIFITS._merge_target_name_match = target_name_match
 
     def __repr__(self):
 
@@ -287,8 +342,43 @@ When a fits file is opened a HDUList object is returned."""
 
         return errors
 
-    def get_HDUs(self, exttype, filter=None):
+    def update_uv(self):
+        """
 
+Update the (u, v) coordinates (UCOORD, VCOORD) using information of
+the array and target information contained in OI_ARRAY and OI_TARGET 
+tables.
+
+Warnings
+--------
+
+(u, v) may differ from (UCOORD, VCOORD) determined by a data processing
+software because
+
+a. (UCOORD, VCOORD) can be averaged independently from MJD 
+(see OIFITS standard)
+b. Atmospheric refraction is dealt with approximately, while (UCOORD,
+   VCOORD) may have none to full modelling of the atmosphere.
+
+
+        """
+        for hdu in self.get_dataHDUs():
+            hdu.update_uv()
+
+    def get_HDUs(self, exttype, filter=None):
+        """
+Get all HDUs of a given extension type matching given criteria
+
+Arguments
+---------
+
+exttype (type)
+    Extension type
+filter (func)
+    Function taking an extension object and returning either True or 
+    False
+
+        """
         hdus = [h for h in self[1:] if isinstance(h, exttype)]
         
         if filter is not None:
@@ -297,10 +387,25 @@ When a fits file is opened a HDUList object is returned."""
         return hdus
     
     def get_dataHDUs(self):
+        """
+Get all HDUs containing optical interferometry data
+        """
         return self.get_HDUs(_DataHDU)
 
     def get_HDU(self, extype, filter=None):
-        
+        """
+Get the first HDU of a given extension type matching given criteria
+
+Arguments
+---------
+
+exttype (type)
+    Extension type
+filter (func)
+    Function taking an extension object and returning either True or 
+    False
+
+        """
         hdus = self.get_HDUs(extype, filter=filter)
         
         if not hdus:
@@ -308,32 +413,88 @@ When a fits file is opened a HDUList object is returned."""
         return hdus[0]
 
     def get_OITableHDUs(self):
+        """
+Get all HDUs containing an OI binary table
+        """
         return self.get_HDUs(_OITableHDU)
 
     def get_arrayHDU(self, arrname):
+        """
+Get HDU containing array description (OI_ARRAY)
+
+Arguments
+---------
+
+arrname (str)
+    Name of the array
+
+        """
         def same_arrname(h): return h.get_arrname() == arrname
         return self.get_HDU(_ArrayHDU, same_arrname)
 
     def get_targetHDU(self):
+        """
+Get the HDU containing target information (OI_TARGET)
+        """
         return self.get_HDU(_TargetHDU) 
 
     def get_wavelengthHDUs(self):
+        """
+Get all HDUs containing wavelength information (OI_WAVELENGTH)
+        """
         return self.get_HDUs(_WavelengthHDU)
     
     def get_wavelengthHDU(self, insname):
+        """
+Get the HDU containing wavelength information (OI_WAVELENGTH) of a 
+given instrumental setup.
+
+Arguments
+---------
+
+insname (str)
+    Name of the instrumental setup
+
+        """ 
         def same_insname(h): return h.get_insname() == insname
         return self.get_HDU(_WavelengthHDU, same_insname)
 
     def get_corrHDU(self, corrname):
+        """
+Get the HDU containing a correlation matrix (OI_CORR)
+
+Arguments
+---------
+
+corrname:
+    Name of the correlation matrix
+
+        """
         def same_corrname(h): h.get_corrname() == corrname
         return self.get_HDU(_CorrHDU, same_corrname)
 
     def get_inspolHDU(self, arrname):
+        """
+Get the HDU containing the instrumental polarisation (OI_INSPOL)
+corresponding to a given array.
+
+Arguments
+---------
+
+arrname:
+    Name of the array
+
+        """
         def same_arrname(h): return h.get_arrname() == arrname
         return self.get_HDU(_InspolHDU, same_arrname)
 
     def to_table(self):
-       
+        """
+
+Convert to a flat table containing one scalar interferometric 
+observable per line
+
+        """
         tabs = [h._to_table(full_uv=True) for h in self.get_dataHDUs()]
         colnames = tabs[0].colnames 
         cols = [_ma.hstack([t[n] for t in tabs]) for n in colnames]
@@ -351,6 +512,11 @@ When a fits file is opened a HDUList object is returned."""
         return tab
 
     def append(self, h2):
+        """Not implemented"""
+        raise NotImplementedError()
+
+    def pop(self, index=-1):
+        """Not implemented"""
         raise NotImplementedError()
 
     def copy(self):
@@ -370,7 +536,16 @@ When a fits file is opened a HDUList object is returned."""
                     h.header['EXTVER'] = i + 1
 
     def to_version(self, n):
-        
+        """
+Convert an OIFITS object to version 1 or 2 of the standard.
+
+Arguments
+---------
+
+n (int: 1 or 2)
+    Version of the OIFITS standard
+
+        """
         cls = type(self)
         for newcls in type(self).__base__.__subclasses__():
             if newcls._OI_VER == n:
@@ -381,7 +556,10 @@ When a fits file is opened a HDUList object is returned."""
         return hdulist 
 
     def update_primary_header(self):
-        
+        """
+Update the primary header to match the information in OI table 
+extensions
+        """ 
         header = self[0].header
         datahdus = self.get_dataHDUs()
         
@@ -442,8 +620,14 @@ When a fits file is opened a HDUList object is returned."""
                 header[keyw] = 'UNKNOWN'
 
 class OIFITS1(_OIFITS):
+    """Top-level class of Optical Interferometry FITS format.
+When a fits file is opened an OIFITS1 or OIFITS2  object is returned."""
     _OI_VER = 1
 
 class OIFITS2(_OIFITS):
+    """Top-level class of Optical Interferometry FITS format.
+When a fits file is opened an OIFITS1 or OIFITS2  object is returned."""
     _OI_VER = 2
+
+set_merge_settings = _OIFITS.set_merge_settings
 

@@ -3,14 +3,18 @@ from astropy.io import fits as _fits
 from .. import utils as _u
 import copy as _copy
 
+# All Valid HDUs for OIFITS will inherit a _CARDS structured array
+# describing the specific FITS keywords in the header
 _InheritCardDescription = _u.InheritConstantArray(
-                            '_CARDS',
-                            dtype=[
-                                ('name', 'U32'), ('required', bool),
-                                ('test', object), ('default', object),
-                                ('comment', 'U47')
-                            ]
-                          )
+    '_CARDS',
+    dtype=[
+        ('name', 'U32'),     # keyword name
+        ('required', bool),  # whether it must be present
+        ('test', object),    # func that tests the validity of keyword value
+        ('default', object), # default value. None: no default possible
+        ('comment', 'U47')   # associated comment
+    ]
+)
 
 class _ValidHDU(
     _InheritCardDescription,
@@ -125,8 +129,6 @@ class _ValidHDU(
             if getattr(newcls, '_OI_VER', None) == version:
                 break
         else:
-            print(cls)
-            print([(s, getattr(s, '_OI_VER', None)) for s in subclasses])
             error = f"Could not find a class maching {version=}"
             raise RuntimeError(error)
 

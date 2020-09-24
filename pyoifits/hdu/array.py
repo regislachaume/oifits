@@ -1,8 +1,13 @@
+"""
+Implementation of the OI_ARRAY binary table extension.
+"""
+
 from .table import _OITableHDU, _OITableHDU11, _OITableHDU22
 from .referenced import _Referenced
 from astropy.coordinates import EarthLocation as _EarthLocation
-from scipy.spatial.transform import Rotation as _rotation
+
 from .. import utils as _u
+from .. import coo as _coo
 
 import numpy as _np
 
@@ -18,16 +23,60 @@ class _ArrayHDUBase(_OITableHDU):
                 return None
             val = default
         else:
-            val = self._xmatch(name, refhdu, 'STA_INDEX', concatenate)
+            val = self._xmatch(refhdu, 'STA_INDEX', 
+                            name=name, concatenate=concatenate)
 
         return self._resize_data(val, shape, flatten)
 
     def get_sta_name(self, shape='none', flatten=False):
         return self._get_array_field('STA_NAME', shape, flatten)
 
-    def get_sta_xyz(self, shape='none', flatten=False):
-        return self._get_array_field('STAXYZ', shape, flatten)
+    def get_staxyz(self):
+        return self._get_array_field('STAXYZ')
 
+    def get_staenu(self):
+        """
+
+Determine the (East, North, up) coordinates of each station with respect
+with the centre of the array
+
+Arguments
+---------
+
+None
+
+Returns
+-------
+
+uvw (float × NOBS × NSTA × 3)
+    (u, v, w) coordinates for each observation and each station. NOBS
+    is the number of observations (rows) in the table and NSTA the number
+    of stations (NSTA = 3 for OI_T3, NSTA = 2 for OI_VIS and OI_VIS2,
+    NSTA = 1 for OI_FLUX in uncalibrated mode)
+
+Raises
+------
+
+NotImplementedError 
+    The array is not defined in the GEOCENTRIC frame
+
+        """
+        xyz = self.get_staxyz()
+        frame = self.header.get('FRAME', 'GEOCENTRIC')
+
+        if frame != 'GEOCENTRIC':
+            txt = f"(E, N, U) coordinates not implemented for frame {frame}"
+            raise NotImplementedErrror(txt)
+
+        # (X, Y, Z)_ITRS -> (E, N, U)_local 
+        loc = self.get_location()
+        lon = loc.lon.to_value('rad')
+        lat = loc.lat.to_value('rad')
+        staune = _u.rotation3d(xyz, 'zy', [-lon, lat], degrees=False)
+        staenu = _np.roll(staune, -1, axis=-1)
+       
+        return staenu
+ 
     def get_sta_config(self, shape='none', flatten=False, default=None):
         return self._get_array_field('STA_NAME', shape, flatten,
                     concatenate=True, default=default)
@@ -45,6 +94,15 @@ class _ArrayHDUBase(_OITableHDU):
             return None
         arrname = self._resize_data(arrname, shape, flatten)
         return arrname
+
+    def get_location(self):
+        
+        arrayHDU = self.get_arrayHDU()
+        header = arrayHDU.header
+        xyz = [header.get('ARRAY' + var, 0) for var in ['X', 'Y', 'Z']]
+        loc = _EarthLocation.from_geocentric(*xyz, unit="m")
+
+        return loc
 
     def get_arrayHDU(self):
         if self.header['EXTNAME'] == 'OI_ARRAY':
@@ -88,7 +146,7 @@ class _ArrayHDUBase(_OITableHDU):
         # already spotted as not valid by column verification 
         ref_index = refhdu.STA_INDEX
         sta_index = _np.unique(sta_index)
-        missing = [i for i in sta_index if i > 0 and i not in ref_index]
+        missing = [str(i) for i in sta_index if i > 0 and i not in ref_index]
         if len(missing):
             m = ', '.join(missing)
             err_text = f"'STA_INDEX' not referenced in ArrayHDU: {m}"
@@ -121,15 +179,15 @@ class _ArrayHDU(_MustHaveArrayHDU,_Referenced):
         ('ARRAYZ', True, _u.is_num, None, 'Z coordinate of array centre'),
     ]
     _COLUMNS = [
-        ('TEL_NAME',  True, '<U16', (),   None,           None, None,
+        ('TEL_NAME',  True, '16A', (),  None,            None, None,
                 'telescope name'), 
-        ('STA_NAME',  True, '<U16', (),   None,           None, None,
+        ('STA_NAME',  True, '16A', (),  None,            None, None,
                 'station name'), 
-        ('STA_INDEX', True, '>i2', (),   _u.is_strictpos, None, None,
+        ('STA_INDEX', True, '1I',  (),  _u.is_strictpos, None, None,
                 'station index for cross-reference'),
-        ('DIAMETER',  True, '>f4', (),   _u.is_strictpos, None, "m",
+        ('DIAMETER',  True, '1E', (),   _u.is_strictpos, None, "m",
                 'effective diameter of the aperture'),
-        ('STAXYZ',    True, '>f8', (3,), None,            None, "m",
+        ('STAXYZ',    True, '3E', (3,), None,            None, "m",
                 'station coordinates relative to array centre'),
     ]
     
@@ -191,9 +249,65 @@ class _ArrayHDU(_MustHaveArrayHDU,_Referenced):
             arrayxyz=None, lat=None, lon=None, alt=None, 
             frame='GEOCENTRIC', ellipsoid='WGS84',
             tel_name=None, sta_name=None, sta_index=None, diameter=None, 
-            staxyz=None, sta_enu=None,
+            staxyz=None, staenu=None,
             fits_keywords={}, **columns):
+        """
 
+Build an OI_ARRAY extension from data. In the following, NSTA is the
+number of stations.
+
+Arguments
+---------
+
+version:
+    OIFITS version if it cannot be determined from context (optional)
+ellipsoid (str)
+    Geodetic coordinate system (optional, default is WGS84)
+calibrated (bool)
+    Whether flux are calibrated or uncalibrated (measured at each station)
+
+arrname (str)
+    name of the array
+frame (str)
+    frame (optional, default is GEOCENTRIC)
+fits_keywords (dict)
+    additional FITS keywords (optional)
+arrayxyz (float, 3) 
+or lat, lon, alt (float):
+    Coordinates of the centre of the array. 
+    * arrayxyz uses the geocentric frame in metres.
+    * lat, lon, alt are the geodetic coordinates in degrees and metres.
+    Only for GEOCENTRIC frame.
+
+sta_index (int, NSTA)
+    Station index for cross-reference
+tel_name (str, NSTA)
+    Names of the telescopes
+sta_name (str, NSTA)
+    Names of the stations
+diameter (float, NSTA)
+    Effective aperture of the telescopes
+staxyz (float, NSTA × 3)
+or staenu (float, NSTA × 3)
+    Coordinates of the stations relative to array centre. staenu uses
+    the local frame (East-North-up) and sta_xyz the specified frame
+    (Cartesian geocentric if GEOCENTRIC, local frame if SKY). In metres.
+
+Arguments in OIFITS2 only
+-------------------------
+
+fov (float)
+    field of view in arcsec
+fovtype (str)
+    field of view type is FWHM or RADIUS 
+
+Additional arguments
+--------------------
+
+Any additional keyword argument will be appended as a non-standard FITS 
+column with its name prefixed with NS_ 
+
+        """
         geodetic = lon is not None and lat is not None and alt is not None
         if geodetic:
             if frame == 'GEOCENTRIC':
@@ -209,19 +323,18 @@ class _ArrayHDU(_MustHaveArrayHDU,_Referenced):
         if alt is not None:
             fits_keywords['ALT-OBS'] = (alt, 'altitude of array centre (m)')
    
-        if sta_enu is not None:
+        if staenu is not None:
             if frame == 'SKY':
-                staxyz = sta_enu
+                staxyz = staenu
             else:
                 if not geodetic:
                     loc = _EarthLocation.from_geocentric(*arrayxyz, unit="m")
                     loc = loc.to_geodetic(ellipsoid=ellipsoid)
                     lon = loc.lon.value
                     lat = loc.lat.value
-                rot = _rotation.from_euler('yz', [-lat, lon], degrees=True)
-                sta_une = _np.roll(sta_enu, 1, axis=1)
-                staxyz = rot.apply(sta_une)
-            
+                # (E, N, U) -> (X, Y, Z)_ITRS transform
+                staune = _np.roll(staenu, 1, axis=-1)
+                staxyz = _u.rotation3d(staune, 'yz', [-lat, lon], degrees=True)
         if sta_index is None:
             sta_index = list(range(1, len(tel_name) + 1))
         
@@ -236,23 +349,35 @@ class _ArrayHDU(_MustHaveArrayHDU,_Referenced):
         return super().from_data(version=version, 
                     fits_keywords=fits_keywords, **columns)
 
+            
+
 class ArrayHDU1(
         _ArrayHDU,
         _OITableHDU11, # OFITS1, rev. 1
       ):
-    _CARDS = [('FRAME', True, _u._is_frame1, 'GEOCENTRIC', 
+    """
+
+First revision of the OI_ARRAY binary table, OIFITS v. 1
+
+    """
+    _CARDS = [('FRAME', True, _u.is_frame1,  'GEOCENTRIC', 
         'coordinate frame for array centre and stations')]
 
 class ArrayHDU2(
         _ArrayHDU,
         _OITableHDU22, # OIFITS2, rev. 2
       ):
-    _CARDS = [('FRAME', True, _u._is_frame2, 'GEOCENTRIC', 
+    """
+
+Second revision of the OI_ARRAY binary table, OIFITS v. 2
+
+    """
+    _CARDS = [('FRAME', True, _u.is_frame2,  'GEOCENTRIC', 
         'coordinate frame for array centre and stations')]
     _COLUMNS = [
-        ('FOV',     False, '>f8', (), _u.is_strictpos, None, "arcsec",
+        ('FOV',     False, '1D', (), _u.is_strictpos, None, "arcsec",
                 'photometric field of view'), 
-        ('FOVTYPE', False, '<U6', (), _u._is_fovtype2, None, None,
+        ('FOVTYPE', False, '6A', (), _u.is_fovtype2,  None, None,
                 'definition of the field of view')
     ]
 

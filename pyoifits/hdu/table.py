@@ -1,109 +1,31 @@
 from .. import utils as _u
+from .. import fitsutils as _fu
+
 from .base import _ValidHDU, _OIFITS1HDU, _OIFITS2HDU
 
 from astropy.io import fits as _fits
 import numpy as _np 
 import re as _re
 
-
-
-
+# All OIFITS tables will inherit a _COLUMNS structured array describing
+# the columns specified in the standard
 _InheritColumnDescription = _u.InheritConstantArray(
-                              '_COLUMNS',
-                              dtype=[
-                                  ('name', 'U32'),  ('required', bool),
-                                  ('type', object), ('shape', object),
-                                  ('test', object), ('default', object), 
-                                  ('unit', 'U16'),  ('comment', 'U47'),
-                              ]
-                            )
+    '_COLUMNS',
+    dtype=[
+        ('name', 'U32'),     # TTYPEn (column name, e.g. VIS2DATA)
+        ('required', bool),  # whether the column must be present
+        ('format', 'U3'),    # TFORMATn (data format, e.g. 1J or 15A)
+        ('shape', object),   # a tuple including 'NWAVE' if necessary
+        ('test', object),    # a func that tests the validity of the value
+        ('default', object), # default value, if None: no default possible
+        ('unit', object),    # TUNITn. Notes:
+                             # * None: no unit or empty value for TUNITn
+                             # * 'any': TUNITn may be present with any value
+                             # * a value: TUNITn must be present with this value
+        ('comment', 'U47'),  # Comment for TTYPEn in the header
+    ]
+)
 
-def _cast_column(col, coldesc):
-    val = col.array
-    fmt = _u.dtype_to_fits(coldesc['type'], _np.shape(val))
-    col = _fits.Column(name=col.name, array=col.array, format=fmt,
-                        unit=coldesc['unit'], null=col.null, dim=col.dim)
-    return col
-
-def _cast_columns(cols, colsdesc):
-    new_cols = []
-    for col in cols:
-        coldesc = colsdesc[colsdesc['name'] == col.name]
-        if len(coldesc):
-            coldesc = coldesc[0]
-            spec = _u.dtype_to_fits(coldesc['type'], _np.shape(col.array))
-            real = col.format
-            if spec != real:
-                try:
-                    col = _cast_column(col, coldesc)
-                except:
-                    pass
-        new_cols.append(col)
-    return new_cols
-
-
-def _merge_fits_columns(oicolumns, *hdus):
-    columns = []
-    colnames = []
-    for hdu in hdus:
-        for c in hdu.columns:
-            name = c.name
-            if name not in colnames:
-                colnames.append(name)
-                is_oicolumn = oicolumns['name'] == name
-                # we want to ensure OI columns have the right format
-                # (e.g. too short strings in first table may lead
-                # to truncation)
-                if is_oicolumn.any():
-                    coldesc = oicolumns[is_oicolumn][0]
-                    shape = _np.shape(c.array)[1:]
-                    null = c.null
-                    col = _u.fits_column(shape=shape, null=null, **coldesc)
-                    # col = _minimal_fits_column(coldesc, shape, null=null)
-                else:
-                    col = c
-                columns.append(c)
-    return columns
-
-def _merge_fits_rows(*rows, id_name=None, equality=lambda x,y: x==y):
-
-    if id_name is None:
-        return rows, [{}]
-
-    # New unused IDs (in a sequence, avoiding the ones in either
-    rows1 = rows[0]
-    id1 = rows1[id_name].tolist()
-    kept = [rows1]
-    maps = [{}]
-
-    for rows2 in rows[1:]:
-        
-        id2 = rows2[id_name]
-        candidate_id2 = set(range(1, 1 + len(id1) + len(id2)))
-        candidate_id2 -= set([*id1, *id2])
-        candidate_id2 = sorted(list(candidate_id2))
-        
-        index_map = {}
-        kept_lines = []
-        for j, row2 in enumerate(rows2):
-            
-            equal = [equality(row2, row1) for rows1 in kept for row1 in rows1]
-            index_equal = _np.argwhere(equal)
-            if len(index_equal):
-                index_map[id2[j]] = id1[index_equal[0,0]]
-                continue
-                
-            kept_lines.append(j)
-            value = candidate_id2.pop(0) if id2[j] in id1 else id2[j]
-            index_map[id2[j]] = value
-            id1.append(value)
-        kept2 = rows2[kept_lines]
-        index_map = {o: n for o, n in index_map.items() if o != n}
-        
-        kept.append(kept2)
-        maps.append(index_map)
-        
-    return kept, maps
 
 class _OITableHDU(
          _ValidHDU,
@@ -122,6 +44,8 @@ class _OITableHDU(
         
         super().update()
 
+        # update the comments for the standard OIFITS columns and other
+        # keywords
         header = self.header
         header.set('EXTNAME', self._EXTNAME, 'OIFITS extension name')
 
@@ -149,7 +73,9 @@ class _OITableHDU(
             tdim = f"TDIM{index}"
             if tdim in header and not comments[tdim]:
                 comments[tdim] = f"dimension of {name}"
-        
+       
+        # standard v.2 makes this optional, but it's good practice
+        # isn't it? 
         self.add_datasum()
         self.add_checksum()
 
@@ -157,16 +83,37 @@ class _OITableHDU(
     def from_columns(cls, columns, header=None, nrows=0, fill=False,
             character_as_bytes=False):
 
-        # we need to shape the columns to the right type (float type
-        # and/or string width)
-        oi_columns = cls._get_oi_columns(required=False)
-        columns = _cast_columns(columns, oi_columns)
+        columns = cls._fix_column_types(columns)
 
         return super().from_columns(columns, header=header, nrows=nrows,
             fill=False, character_as_bytes=character_as_bytes) 
 
     def to_version(self, n):
+        """
 
+Transform an OIFITS table between versions of the OIFITS standard.
+
+Arguments
+---------
+
+n (int in 1..2)
+    Version
+
+Returns
+-------
+
+Binary table of same EXTNAME conforming to OIFITS standard n.
+
+Warning
+-------
+
+Losses may happen because
+1) some column widths are shorter in v. 1 resulting in truncation.
+2) some OIFITS2 columns do not exist in OIFITS1 and will be 
+    prefixed with NS_ if transforming 2 -> 1.  The 1 -> 2 
+    transform will not restore the original column names.
+
+        """
         cls = type(self)
 
         if cls._OI_VER == n:
@@ -180,16 +127,25 @@ class _OITableHDU(
 
     @classmethod
     def __init_subclass__(cls):
+
         super().__init_subclass__()
         if getattr(cls, '_EXTNAME', None) and  getattr(cls, '_OI_REVN', None): 
             _fits.hdu.base._BaseHDU.register_hdu(cls)
  
     @classmethod
     def match_header(cls, header):
+        """
+
+Internal astropy.io.fits cuisine that was inadvertently exposed by the
+project.
+
+        """
         extname = getattr(cls, '_EXTNAME', None)
         oi_revn = getattr(cls, '_OI_REVN', None)
+
         if extname is None or oi_revn is None:
             return NotImplementedError
+
         return (_fits.BinTableHDU.match_header(header) and
                 header.get('EXTNAME', '') == extname and
                 header.get('OI_REVN', '') == oi_revn)
@@ -214,11 +170,14 @@ class _OITableHDU(
                 h1.get('ARRNAME', '') == h2.get('ARRNAME', '') and
                 h1.get('CORRNAME', '') == h2.get('CORRNAME', ''))
  
-    def _xmatch(self, name, refhdu, refname, concatenate=False):
+    def _xmatch(self, refhdu, refname, *, name=None, concatenate=False):
         """Helper to find target or array properties from indices"""
-        
-        ref_values = getattr(refhdu, name)
+       
         ref_indices = getattr(refhdu, refname)
+        if name is None:
+            ref_values = list(range(len(ref_indices))) 
+        else:
+            ref_values = getattr(refhdu, name)
         xmatch = dict(zip(ref_indices, ref_values))
         indices = getattr(self, refname)
         shape = indices.shape + _np.shape(ref_values[0])
@@ -242,14 +201,35 @@ class _OITableHDU(
         return self.data[colnames[0]].shape
 
     def get_nwaves(self):
+        """
 
-       return 0 
+Return the number of spectral channels
+
+        """ 
+        return 0 
 
     def rename_columns(self, **names):
-        
+        """
+
+Rename several columns at once.
+
+Syntax: tab.rename_columns(oldname1=newname1, ...)
+
+        """
         self.data.dtype.names = [names.get(n, n) for n in self.data.dtype.names]
+        oi_colnames = self._get_oi_columns(required=True)['name']
+
         for old, new in names.items():
+
+            if old in oi_colnames:
+                err_txt = 'Cannot rename a mandatory OIFITS column'
+                raise RuntimeError(err_txt)
+            if new in self.columns.names:
+                err_txt = 'Cannot rename column to an existing one'
+                raise RuntimeError(err_txt)
+
             self.columns[old].name = new
+
         self.update()
  
     def _verify(self, option='warn'):
@@ -267,28 +247,30 @@ class _OITableHDU(
                 errors.append(err)
            
         # Check column types
-        column_casts = []
         for coldesc in OI_COLUMNS:
-            name, req, type_, shape, test, default, unit, comment = coldesc
+            name, req, fmt, shape, test, default, unit, comment = coldesc
             if name not in self.columns.names:
                 continue
             
             # check the type
-            dtype = self.data[name].dtype
-            spec = _u.dtype_descr(type_)
-            real = _u.dtype_descr(dtype.str)
-            if spec != real:
-                err_txt = f"Column {name}: type must be {spec} but is {real}."
+            real = self.columns[name].format
+            if len(fmt) == 1:
+                real = real[-1]
+            if fmt != real:
+                err_txt = f"Column {name}: type must be {fmt} but is {real}."
                 fix_txt = "Will try to fix."
-                column_casts.append(name)
                 def fix(): pass
                 err = self.run_option(option, err_txt, fix_txt, fix)
                 errors.append(err)
 
             # check unit
+            # * 'any': unit can be absent or present with any value
+            # * None: no unit, so TUNITn may be absent or empty string
+            # * other value: must be matched in TUNITn
             real = self.columns[name].unit
             spec = unit
-            if real != spec:
+            if (spec is None and real not in [None, ''] or
+                spec not in [None, 'any'] and spec != real): 
                 err_txt = f"Column {name}: unit must be {spec} but is {real}."
                 fix_txt = "Fixed." 
                 def fix(col=self.columns[name]): col.unit = spec
@@ -321,14 +303,16 @@ class _OITableHDU(
                     if not fixable:
                         fix = None
                     val1 = values[invalid][0]
-                    err_text = f"Column '{name}' has incorrect values. First encountered  '{val1}'."
-                    fix_text = f"Replaced by default value"
-                    err = self.run_option(option, err_text, fix_text, fix, fixable)
+                    err_txt = f"Column '{name}' has incorrect values. "
+                    err_txt += f"First encountered  '{val1}'."
+                    fix_txt = f"Replaced by default value"
+                    err = self.run_option(option, err_txt, fix_txt, fix, fixable)
+
         # Non standard columns should start have prefix_
         colnames = self.data.dtype.names
         oi_colnames = self._get_oi_colnames()
         subst = {name: f"NS_{name}" for name in colnames 
-                    if name not in oi_colnames and '_' not in name}
+                    if name not in oi_colnames and name[0:3] != 'NS_'}
         if subst:
             nonstd = ', '.join([f"'{n}'" for n in subst.keys()])
             err_text = f"Column name(s) should start with prefix_ :'{nonstd}'."
@@ -337,13 +321,46 @@ class _OITableHDU(
             err = self.run_option(option, err_text, fix_text, fix)
             errors.append(err)
 
-        #cast_done = False
-        if len(column_casts):
-            columns = _cast_columns(self.columns, OI_COLUMNS)
-            self.data = _fits.FITS_rec.from_columns(columns)
-            self.update()
+        # Fix column types (string length, float/double)
+        self.fix_column_types()
 
         return errors
+
+    @classmethod
+    def _fix_column_types(cls, columns):
+
+        oi_columns = cls._get_oi_columns(required=False)
+        new_columns = []
+
+        for col in columns:
+
+            coldesc = oi_columns[oi_columns['name'] == col.name]
+
+            if len(coldesc):
+                coldesc = coldesc[0]
+                try:
+                    col = _fu.ascolumn(col, name=coldesc['name'],
+                        unit=coldesc['unit'], format=coldesc['format'])
+                except:
+                    pass
+            new_columns.append(col)
+
+        return new_columns
+
+
+    def fix_column_types(self):
+        """
+
+Fix the column data types if float or string widths do not conform with
+the standard.
+
+        """
+        columns = self._fix_column_types(self.columns)
+        fixed = any(a is not b for a, b in zip(columns, self.columns))
+        
+        if fixed: 
+            self.data = _fits.FITS_rec.from_columns(columns)
+            self.update()
 
     def __repr__(self):
 
@@ -356,16 +373,24 @@ class _OITableHDU(
     # Quick access to OICOLUMNS with hdu.VI2DATA, etc.
     def __getattr__(self, s):
       
-        colnames = self._get_oi_colnames() 
-        oicolnames = [x for x in self.columns.names if x in colnames]
-        if s in oicolnames:
+        oicolnames = self._get_oi_colnames() 
+        if s in oicolnames and s in self.columns.names:
             return self.data[s][...]
         
         clsname = type(self).__name__
         err = f"'{clsname}' object has no attribute '{s}'"
         raise AttributeError(err)
 
+    def __setattr__(self, s, v):
+
+        oicolnames = self._get_oi_colnames()
+        if s in oicolnames and s in self.columns.names:
+            self.data[s] = v
+        else:
+            self.__dict__[s] = v
+
     def zero(self):
+
         newhdu = self.copy()
         for name in self._get_spec_colnames():
             newhdu.data[name][...] = 0
@@ -475,21 +500,20 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
 
         # Merged tables will keep all columns.  Values will be zero if not 
         # defined in one of the tables
-        columns = _merge_fits_columns(cls._COLUMNS, *hdus)
-        colnames = [c.name for c in columns]
+        colnames, columns = _fu.merge_columns(*hdus)
 
         # Merge sets of FITS rows.
         # * In each set, rows duplicating one of the previous set is eliminated
         # * For each set a map of old_id -> new_id is built to avoid
         #   duplicate IDs.
         rows = [hdu.data for hdu in hdus]
-        rows, maps = _merge_fits_rows(*rows, id_name=id_name, equality=equality)
+        rows, maps = _fu.merge_rows(*rows, id_name=id_name, equality=equality)
         nrows = sum(len(r) for r in rows)
 
         # Merge headers.  
         headers = [hdu.header for hdu in hdus]
         req_keys = cls._CARDS['name'][cls._CARDS['required']]
-        header = _u.merge_fits_headers(*headers, req_keys=req_keys)
+        header = _fu.merge_fits_headers(*headers, req_keys=req_keys)
         
         # Create an empty merged fits with the right number of rows,
         # then fill it.
@@ -568,7 +592,6 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
             for obs_name in obs_names:
                 if obs_name in columns:
                     shape = _np.shape(columns[obs_name])
-                    print(f"{shape=}")
                     return shape
             raise RuntimeError('cannot guess shape from data')
         
@@ -576,7 +599,6 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
         for name in oi_columns['name']:
             if name in columns:
                 shape = _np.shape(columns[name])
-                print(f"{shape=}")
                 return shape
         raise RuntimeError('cannot guess shape from data')
          
@@ -617,6 +639,11 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
         # Guess shape
         shape = cls._guess_shape(columns)
         nrows = shape[0]
+        
+        def full(s, x):
+            if _np.ndim(x) > len(s):
+                return _np.asarray(x)
+            return _np.full(s, x)
 
         # Guess errors from data    
         obs_names = cls.get_observable_names() 
@@ -624,19 +651,11 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
         for obs, err in zip(obs_names, err_names):
             if obs in columns:
                 if err not in columns:
-                    columns[err] = 0.
-                if not _np.shape(columns[err]):
-                    columns[err] = _np.full(shape, columns[err])
-
+                    columns[err] = 0. 
         fcols = []
 
-        def full(s, x):
-            if _np.shape(x)[:len(shape)] == s:
-                return _np.asarray(x)
-            return _np.full(s, x)
-
             # official OIFITS columns
-        for col in cls._COLUMNS:
+        for col in cls._get_oi_columns(required=False):
             name = col['name']
             if name not in columns:
                 if col['required']:
@@ -649,44 +668,34 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
                 new_shape = (nrows,)
             array = full(new_shape, columns[name]) 
             del columns[name]
-            fcol = _u.fits_column(array=array, **col)
+            fcol = _fu.ascolumn(array, format=col['format'], unit=col['unit'],
+                name=name)
             fcols.append(fcol)
-
-            # dtype = col['type']
-            # unit = col['unit']
-            # fmt = _dtype_to_fits(dtype, new_shape)
-            # fcol = _fits.Column(format=fmt, unit=unit, array=array, name=name)
-            # fcols.append(fcol)   
 
             # additional columns
         for name, array in columns.items():
-            fcol = _u.fits_column(array, name=name)
+            fcol = _fu.ascolumn(array, name=name)
             fcols.append(fcol)
-            # fmt = _dtype_to_fits(array.dtype, array.shape)
-            # fcol = _fits.Column(array=array, format=fmt, name=name) 
-            # fcols.appen(fcol)
         
         tab = super().from_columns(fcols, header=header)
         return tab
-
+    
 
 class _OITableHDU1(_OITableHDU):
     _OI_REVN = 1
     _CARDS = [('OI_REVN', True, _u.is_one, 1, 
         '1st revision of this table in OIFITS format')]
-
+    
 class _OITableHDU2(_OITableHDU):
     _OI_REVN = 2
     _CARDS = [('OI_REVN', True, _u.is_two, 2, 
         '2nd revision of this table in OIFITS format')]
 
-_InitialisedLater = None
-
 class _OITableHDU11(
         _OIFITS1HDU,
         _OITableHDU1
       ):
-    pass
+    pass 
 
 class _OITableHDU21(
         _OIFITS2HDU,

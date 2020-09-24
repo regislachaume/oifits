@@ -1,3 +1,9 @@
+"""
+Implementation of the OI_CORR binary table extension containing corralation
+between interferometric data in OI_VIS, OI_VIS2, OI_T3, and OI_FLUX binary
+table extensions
+"""
+
 from .table import _OITableHDU, _OITableHDU21
 from .referenced import _Referenced
 from .. import utils as _u
@@ -35,11 +41,11 @@ class _CorrHDU(_MustHaveCorrHDU,_Referenced):
             'size of correlation matrix (NDATAxNDATA)'),
     ] 
     _COLUMNS = [
-        ('IINDX', True, '<i4', (), _u.is_strictpos, None, None,
+        ('IINDX', True, '1J', (), _u.is_strictpos, None, None,
             '1st index (<= NDATA)'),
-        ('JINDX', True, '<i4', (), _u.is_strictpos, None, None,
+        ('JINDX', True, '1J', (), _u.is_strictpos, None, None,
             '2nd index (<= NDATA)'), 
-        ('CORR',  True, '<f8', (), None,            None, None,
+        ('CORR',  True, '1D', (), None,            None, None,
             'correlation C[IINDX,JINDX]')
     ]
     
@@ -92,6 +98,11 @@ class CorrHDU1(
         _CorrHDU,
         _OITableHDU21, # OIFITS2, table rev. 1
     ):
+    """
+
+First revision of the OI_CORR binary table, OIFITS v. 2
+
+    """
     pass
 
 

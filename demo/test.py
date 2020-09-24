@@ -22,17 +22,15 @@ alt = 2669
 sta_name = ['A0', 'B1', 'J1', 'J6']
 tel_name = ['AT1', 'AT2', 'AT3', 'AT4']
 diameter = [1.8, 1.8, 1.8, 1.8]
-sta_enu = [[-14.642, -55.812, 4.54],
-           [ -1.863, -68.334, 4.54],
-           [106.648, -39.444, 4.54],
-           [ 59.810,  96.706, 4.54]]
+staenu = oifits1[1].STAXYZ
+
 
 # Build the OI_ARRAY table 
 # Targets
 simbad_id = ['beta Car', 'η Car']
 category = ['SCI', 'CAL']
 array  = pyoifits.new_array_hdu(arrname=arrname, lat=lat, lon=lon, alt=alt,
-            tel_name=tel_name, sta_name=sta_name, sta_enu=sta_enu,
+            tel_name=tel_name, sta_name=sta_name, staenu=staenu,
             diameter=1.8)
 target = pyoifits.new_target_hdu_from_simbad(simbad_id, category=category)
 
@@ -57,3 +55,23 @@ vis2 = pyoifits.new_vis2_hdu(insname=insname, arrname=arrname, mjd=mjd,
         vis2err=vis2err)
 
 obs = pyoifits.OIFITS2([pyoifits.PrimaryHDU2(), target, array, wavelength, vis2])
+vis2 = oifits1[-4]
+# 
+for c in 'XYZ':
+    oifits1[1].header['ARRAY' + c] = array.header['ARRAY' + c]
+    oifits1[1].STAXYZ = array.STAXYZ
+
+#print('no ref')
+#uvw = vis2.get_stauvw()
+#print('ref')
+#uvw_ref = vis2.get_stauvw(refraction=True)
+
+u, v, w = vis2.get_uvw(refraction=True)
+u0, v0 = vis2.UCOORD, vis2.VCOORD
+print(u-u0, v-v0)
+
+u, v, w = vis2.get_uvw(refraction=False)
+u0, v0 = vis2.UCOORD, vis2.VCOORD
+print(u-u0, v-v0)
+
+

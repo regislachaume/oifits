@@ -66,6 +66,11 @@ class InspolHDU1(
         _InspolHDU, 
         _OITableHDU21, # OIFITS2, table rev. 1
       ):
+    """
+
+First revision of the OI_INSPOL binary table, OIFITS v. 2
+
+    """
     _CARDS = [
         ('NPOL',   True, _u.is_strictpos, None, 
             'number of polarisations'),
@@ -75,23 +80,23 @@ class InspolHDU1(
             'method used to determine the Jones matrix')
     ]
     _COLUMNS = [
-        ('TARGET_ID',  True, '>i2',  (),     _u.is_strictpos, None, None,
+        ('TARGET_ID',  True, '1I',  (),     _u.is_strictpos, None, None,
             'target ID in matching OI_TARGET table'),
-        ('INSNAME',    True, '<U32', (),     None,            None, None,
+        ('INSNAME',    True, '32A', (),     None,            None, None,
             'name of matching OI_WAVELENGTH table'), 
-        ('MJD_OBS',    True, '>f8',  (),     None,            None, "d",
+        ('MJD_OBS',    True, '1D',  (),     None,            None, "d",
             'modified Julian day at start of observation'), 
-        ('MJD_END',    True, '>f8',  (),     None,            None, "d",
+        ('MJD_END',    True, '1D',  (),     None,            None, "d",
             'modified Julian day at en of observation'),
-        ('JXX',        True, '>c8',  (_NW,), None,            None, None,
+        ('JXX',        True, 'M',   (_NW,), None,            None, None,
             'Jones matrix element J_xx'), 
-        ('JYY',        True, '>c8',  (_NW,), None,            None, None,
+        ('JYY',        True, 'M',   (_NW,), None,            None, None,
             'Jones matrix element J_xy'),
-        ('JXY',        True, '>c8',  (_NW,), None,            None, None,
+        ('JXY',        True, 'M',   (_NW,), None,            None, None,
             'Jones matrix element J_yx'), 
-        ('JYX',        True, '>c8',  (_NW,), None,            None, None,
+        ('JYX',        True, 'M',   (_NW,), None,            None, None,
             'Jones matrix element J_yy'),
-        ('STA_INDEX',  True, '>i2',  (),     None,            None, None,
+        ('STA_INDEX',  True, '1I',  (),     None,            None, None,
             'station index in matching OI_ARRAY table'),
     ]
 

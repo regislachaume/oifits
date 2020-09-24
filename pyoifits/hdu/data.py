@@ -7,11 +7,16 @@ from .corr import _MayHaveCorrHDU
 from .inspol import _MayHaveInspolHDU
 
 from .. import utils as _u
+from .. import coo as _coo
 
 from astropy import table as _table
+from astropy import units as _units
 from numpy import ma as _ma
 import re as _re
 import numpy as _np
+from astropy.time import Time as _Time
+from scipy.spatial.transform import Rotation as _rotation
+from astropy.coordinates import SkyCoord as _SkyCoord
 
 class _DataHDU(_OITableHDU):
     
@@ -19,25 +24,73 @@ class _DataHDU(_OITableHDU):
         ('DATE-OBS', True, _u.is_nonempty, None, 'Date at start of observation'),
     ]
     _COLUMNS = [
-        ('TARGET_ID', True, '>i2', (),         _u.is_strictpos, None,  None,
+        ('TARGET_ID', True, '1I', (),         _u.is_strictpos, None,  None,
             'Target ID for cross-reference'), 
-        ('MJD',       True, '>f8', (),         None,            None,  "d",
+        ('MJD',       True, '1D', (),         None,            None,  "d",
             'Modified Julian Day at start of observation'),
-        ('INT_TIME',  True, '>f8', (),         None,            None,  "s",
+        ('INT_TIME',  True, '1D', (),         None,            None,  "s",
             'Integration time'), 
-        ('FLAG',      True, '|b1', ('NWAVE',), None,            False, None,
+        ('FLAG',      True, 'L',  ('NWAVE',), None,            False, None,
             'Flag for bad quality'),
     ]
     
     def get_obs_type(self, name, shape='data', flatten=False):
+        """
 
+Get the type of observable.
+
+Arguments
+---------
+
+name (str):
+    Name of the observable (VISAMP, VISPHI, IVIS, RVIS, FLUXDATA, VIS2DATA,
+    T3AMP, T3PHI).
+
+shape (str):
+    Shape of the returned argument (optional):
+        * 'none': returns a scalar
+        * 'table': returns a 1D array with the same length as the table 
+            (NROWS)
+        * 'data': returns an array with the same shape as the observable 
+            (NROWS × NWAVE) 
+
+Returns
+-------
+
+Type of observable (uncalibrated flux, calibrated flux, correlated flux, 
+absolute, differential).
+
+        """
         return self._resize_data('N/A', shape, flatten)
 
     def get_uv(self, shape='table', flatten=False):
+        """
 
+Get the (u, v) coordinates.
+
+Arguments
+---------
+
+shape (str):
+    Shape of the returned argument (optional):
+        * 'table': returns a 2D array with th
+            (2 × NROWS or 4 × NROWS)
+        * 'data': returns an array with the same shape as the observable 
+            (2 × NROWS × NWAVE or 4 × NROWS × NWAVE) 
+
+Returns
+-------
+
+uv (array of float):
+    (u, v) for 2T observables and (u1, v1, u2, v2) for 3T observables.
+
+
+        """
         uv = [self._resize_data(self.data[x], shape_flatten)
                     for x in self._COORD_COLUMNS]
-    
+
+        return _np.array(uv)
+
     def _update_targetid(self, index_map):
 
         hdu = _np.copy(self)
@@ -130,6 +183,29 @@ class _DataHDU(_OITableHDU):
         return x 
 
     def get_reference_channels(self, shape='data', flatten=False):
+        """
+
+Get the reference channels for differential quantities.  
+
+Arguments:
+----------
+
+shape (str):
+    Shape of the returned data (optional, defaults to 'data').
+    * 'data': shape is NOBS × NWAVE 
+    * 'table': shape NOBS
+
+flatten (bool, optional, default: False):
+   
+    Whether result should be flatten to 1D array.
+
+Returns:
+--------
+
+A bitfield (int) indicated which wavelength channel numbers are included.  
+If the quantity is not differential, 0 is returned.
+
+        """
 
         visref = self._resize_data(0, 'data', flatten)
         return _ma.masked_array(visref, mask=True)
@@ -151,7 +227,24 @@ class _DataHDU(_OITableHDU):
         return names
 
     def to_table(self):
+        """
 
+Convert to a flat table.
+
+Arguments:
+----------
+    
+full_uv (bool):
+    Whether to systematically include (u1, v1, u2, v2) coordinates even
+    if some of them are not relevant (e.g. flux or 2T data).  In that case
+    they are NaN.
+
+Returns:
+--------
+
+    An astropy.table.Table with one scalar observable per line.
+
+        """
         tab = self._to_table()
         coord_names = self._get_uvcoord_names()
 
@@ -166,7 +259,13 @@ class _DataHDU(_OITableHDU):
         return tab
 
     def merge(self, *others):
-        
+        """
+
+        Merge a set of OI extensions
+
+        Example: hdu = hdu1.merge(hdu2, hdu3)
+
+        """
         for ref in ['ARRNAME', 'INSNAME', 'CORRNAME', 'EXTNAME']:
             sref = self.header.get(ref, '')
             for other in others:
@@ -179,19 +278,177 @@ class _DataHDU(_OITableHDU):
 
     @classmethod
     def from_data(cls, *, insname, arrname=None, corrname=None,
-        date=None, flag=False, fits_keywords={}, **columns):
+        date=None, mjd, int_time=0., flag=False, fits_keywords={}, **columns):
 
         fits_keywords = dict(arrname=arrname, insname=insname, 
                              corrname=corrname, **fits_keywords)
-        columns = dict(flag=flag, **columns)
+        columns = dict(mjd=mjd, int_time=int_time, flag=flag, **columns)
 
         if date is None:
-            mjd = min(columns['mjd'] - columns['int_time'] / 86400. / 2)
-            date = _Time(mjd, format='mjd').isot
+            mjdobs = min(mjd - int_time / 86400. / 2)
+            date = _Time(mjdobs, format='mjd').isot
+    
         fits_keywords = {'DATE-OBS': date, **fits_keywords}
  
         return super().from_data(fits_keywords=fits_keywords, **columns)
 
+    def update_uv(self):
+        """
+
+Update the (u, v) coordinates (UCOORD, VCOORD) using information of
+the array and target information contained in OI_ARRAY and OI_TARGET 
+tables.
+
+Warnings
+--------
+
+(u, v) may differ from (UCOORD, VCOORD) determined by a data processing
+software because
+
+a. (UCOORD, VCOORD) can be averaged independently from MJD 
+(see OIFITS standard)
+b. Atmospheric refraction is dealt with approximately, while (UCOORD,
+   VCOORD) may have none to full modelling of the atmosphere.
+
+
+        """
+        raise NotImplementedError('abstract class') 
+
+    def get_sky_coord(self, max_distance=None):
+        """
+Get the full coordinates of the targets, including distance and 
+motions, at the time (epoch) of observation.  Only the positions
+are corrected for secular motion, the velocity and proper motions
+are not computed.
+
+Returns
+-------
+
+astropy.coordinates.SkyCoord object
+
+        """
+        # cross-reference rows of the Target HDU 
+        thdu = self.get_targetHDU()
+        indices = self._xmatch(refhdu=thdu, refname='TARGET_ID')
+        refcoo =  thdu.get_sky_coord()
+
+        coo = refcoo[indices]
+        
+        # apply epoch correction to positions
+        obstime = _Time(self.MJD, format='mjd')
+        coo = _coo.apply_space_motion(coo, obstime, correct_motion=False)
+
+        if max_distance is not None:
+            coo.distance[_np.isnan(coo.distance)] = max_distance
+
+        return coo 
+
+    def get_stauvw(self, *, refraction=False):
+        """
+
+Determine the (u, v, w) coordinates of each station with respect to
+the centre of the array at the mean time of observation (MJD) using 
+target and array information.
+
+Arguments
+---------
+
+refraction (bool, optional, default: False)
+    Whether the atmospheric refraction will be included in the
+    calculation.
+
+Returns
+-------
+
+uvw (float × NOBS × NSTA × 3)
+    (u, v, w) coordinates for each observation and each station. NOBS
+    is the number of observations (rows) in the table and NSTA the number
+    of stations (NSTA = 3 for OI_T3, NSTA = 2 for OI_VIS and OI_VIS2,
+    NSTA = 1 for OI_FLUX in uncalibrated mode)
+
+Precision
+---------
+
+Sources of errors are:
+1. About 7×10⁻⁵ per second of uncertainty on the effective mean time
+of observation. 
+2. About 5×10⁻⁵ at elevation of 45⁰ (goes as cot z), due to the 
+uncertainty on temperature and pressure in the atmospheric refraction 
+correction.
+3. Uncertainty on the effective wavelength and relative humidity.
+
+Discrepancies of a few centimetres for hectometric baselines have been 
+observed for the VLTI.
+
+Warning
+-------
+
+(u, v) may differ from the tabulated values in the tables (e.g. UCOORD, 
+VCOORD) because data processing pipelines may average (UCOORD, VCOORD) 
+independently from MJD (see OIFITS standard) and atmospheric refraction 
+may be dealt with differently.
+
+Raises
+------
+
+NotImplemented Error
+    There is no associated OI_ARRAY table (OIFITS v. 1)
+        """   
+        arrayHDU = self.get_arrayHDU() 
+        waveHDU = self.get_wavelengthHDU()
+        if arrayHDU is None:
+            raise NotImplementedError('No OI_ARRAY is referenced')
+
+        # If frame is SKY (e.g. pupil mask), STAXYZ are (u,v,w)
+        # coordinates
+        XYZ = self.get_staxyz()
+        frame = arrayHDU.header.get('FRAME', 'GEOCENTRIC')
+        if frame == 'SKY':
+            return XYZ
+ 
+        # enu = self.get_staenu()
+
+        loc = arrayHDU.get_location()
+        lat = loc.lat.to_value('rad')
+        h = loc.height.value
+        obswl = waveHDU.EFF_WAVE.mean() * _units.m
+        waveHDU = self.get_wavelengthHDU()
+
+        # Transform FK5 coordinates to apparent (atmosphere-refracted)
+        # ITRS coordinates. We need to go through altaz because astropy.
+        FK5 = self.get_sky_coord(max_distance=1 * _units.Mpc)
+        altaz_frame = _coo.altaz_frame(loc, obswl=obswl, refraction=refraction)
+
+        UVW = _np.empty_like(XYZ)      
+ 
+        for i, (fk5, xyz) in enumerate(zip(FK5, XYZ)):
+
+            altaz = fk5.transform_to(altaz_frame)
+            altaz = _SkyCoord(altaz.replicate(pressure=0))
+            itrs = altaz.itrs.spherical
+
+            # (X, Y, Z)_ITRS -> (u, v, w)_SKY transform
+            #
+            # It is equivalent to the the (u, v, w) formula given by Eq. 2-30,
+            # p. 25 in Synthesis Imaging in Radio Astronomy II, A Collection of 
+            # Lectures from the Sixth NRAO/NMIMT Synthesis 
+            # Imaging Summer School, G. B. Taylor, C. L. Carilli, and 
+            # R. A. Perley. (eds.), ASP Conference Series, 180, 1999
+            #
+            # except they use a local frame centred on meridian and the 
+            # hour angle, while here the frame is centred on the Greenwich
+            # meridian and the longitude of the source in the ITRS is used. 
+             
+            lon = itrs.lon.value # target longitude in ITRS (opposite of hour
+                                 # angle for an observer at Greenwich meridian)
+            lat = itrs.lat.value # target declination in ITRS
+ 
+            wuv = -_u.rotation3d(xyz, 'zy', [-lon, lat], degrees=True)
+            uvw = _np.roll(wuv, -1, axis=-1)
+
+            UVW[i] = uvw
+
+        return UVW
 
 # OIFITS1 Table 
 class _DataHDU1(
@@ -201,7 +458,7 @@ class _DataHDU1(
         _MustHaveWavelengthHDU,
         _OIFITS1HDU
       ):
-    _COLUMNS = [('TIME', True, '>f8', (), None, 0., "s",
+    _COLUMNS = [('TIME', True, '1D', (), None, 0., "s",
                     'Seconds since UT at start of observation')]
         
 
@@ -210,7 +467,14 @@ class _DataHDU11(
          _DataHDU1,
          _OITableHDU1,
       ):
-    pass
+
+    def from_data(cls, *, fits_keywords={}, mjd, time=None, **columns):
+
+        if time is None:
+            time = (mjd - int(min(mjd))) * 24 * 3600 
+
+        return super().from_data(fits_keywords=fits_keywords,
+                                    mjd=mjd, time=time, **columns)
 
 # OIFITS2 Table
 class _DataHDU2(
@@ -236,6 +500,14 @@ class _DataHDU22(
         _DataHDU2,
         _OITableHDU2
       ):
-    _COLUMNS = [('TIME', True, '>f8', (), _u.is_zero, 0., "s",
+    
+    _COLUMNS = [('TIME', True, '1D', (), _u.is_zero, 0., "s",
                     'For backwards compatibility only')]
+
+    @classmethod
+    def from_data(cls, *, fits_keywords={}, **columns):
+
+        columns['time'] = 0.
+
+        return super().from_data(fits_keywords=fits_keywords, **columns)
 
