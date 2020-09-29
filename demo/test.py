@@ -6,11 +6,13 @@ import numpy as np
 
 pyoifits.set_merge_settings(station_distance=1e9, array_distance=1e9)
 
-oifits1 = pyoifits.open("test1.fits")
-oifits2 = pyoifits.open("test2.fits")
+gravity = pyoifits.open("test1.fits")
+pionier = pyoifits.open("test2.fits")
+gravity.verify('fix+warn')
+pionier.verify('fix+warn')
+merged = gravity + pionier
+merged.verify('fix+warn')
 
-
-oifits = oifits1 + oifits2
 
 # WGS coordinates of nominal VLTI centre  and nominal station positions.
 # (InterfaceControl Document between VLTI and its Instruments (Part I)
@@ -19,11 +21,11 @@ arrname = 'VLTI'
 lat = -24.62743941
 lon = -70.40498689
 alt = 2669
-sta_name = ['A0', 'B1', 'J1', 'J6']
+sta_name = ['A0', 'B2', 'D0', 'C1']
 tel_name = ['AT1', 'AT2', 'AT3', 'AT4']
 diameter = [1.8, 1.8, 1.8, 1.8]
-staenu = oifits1[1].STAXYZ
-
+staenu = gravity[1].STAXYZ
+staenu[:,[0,1]] = -staenu[:,[0,1]]
 
 # Build the OI_ARRAY table 
 # Targets
@@ -66,12 +68,14 @@ for c in 'XYZ':
 #print('ref')
 #uvw_ref = vis2.get_stauvw(refraction=True)
 
-u, v, w = vis2.get_uvw(refraction=True)
-u0, v0 = vis2.UCOORD, vis2.VCOORD
-print(u-u0, v-v0)
+# print('ref')
+# u, v, w = vis2.get_uvw(refraction=True)
+#u0, v0 = vis2.UCOORD, vis2.VCOORD
+#print(u-u0, v-v0)
 
-u, v, w = vis2.get_uvw(refraction=False)
-u0, v0 = vis2.UCOORD, vis2.VCOORD
-print(u-u0, v-v0)
+#print('no ref')
+#u, v, w = vis2.get_uvw(refraction=False)
+#u0, v0 = vis2.UCOORD, vis2.VCOORD
+#print(u-u0, v-v0)
 
 

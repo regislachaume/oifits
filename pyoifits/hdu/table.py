@@ -88,7 +88,7 @@ class _OITableHDU(
         return super().from_columns(columns, header=header, nrows=nrows,
             fill=False, character_as_bytes=character_as_bytes) 
 
-    def to_version(self, n):
+    def to_version(self, version):
         """
 
 Transform an OIFITS table between versions of the OIFITS standard.
@@ -96,13 +96,13 @@ Transform an OIFITS table between versions of the OIFITS standard.
 Arguments
 ---------
 
-n (int in 1..2)
+version (int in 1..2)
     Version
 
 Returns
 -------
 
-Binary table of same EXTNAME conforming to OIFITS standard n.
+Binary table of same EXTNAME conforming to OIFITS standard #version.
 
 Warning
 -------
@@ -114,16 +114,13 @@ Losses may happen because
     transform will not restore the original column names.
 
         """
-        cls = type(self)
 
-        if cls._OI_VER == n:
-            return self.copy()
+        newobj = super().to_version(version)
+        if hasattr(self, '_container'):
+            newobj._container = self._container
+        newobj.fix_column_types()
 
-        for newcls in type(self).__base__.__subclasses__():
-            if newcls._OI_VER == n:
-                break 
-         
-        return newcls.from_columns(self.columns)
+        return newobj
 
     @classmethod
     def __init_subclass__(cls):
@@ -322,7 +319,8 @@ Syntax: tab.rename_columns(oldname1=newname1, ...)
             errors.append(err)
 
         # Fix column types (string length, float/double)
-        self.fix_column_types()
+        if 'fix' in option:
+            self.fix_column_types()
 
         return errors
 
@@ -347,7 +345,6 @@ Syntax: tab.rename_columns(oldname1=newname1, ...)
 
         return new_columns
 
-
     def fix_column_types(self):
         """
 
@@ -359,7 +356,11 @@ the standard.
         fixed = any(a is not b for a, b in zip(columns, self.columns))
         
         if fixed: 
+            # astropy.io.fits is a mess.
+            #  both .data and .columns must be accessed.
             self.data = _fits.FITS_rec.from_columns(columns)
+            for col, format in zip(self.columns, self.data.formats):
+                col.format = format
             self.update()
 
     def __repr__(self):

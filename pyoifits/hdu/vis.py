@@ -16,9 +16,9 @@ visibility amplitudes, phases, as well as correlated fluxes.
             'visibility amplitude'), 
         ('VISAMPERR', True, 'D', (_NW,), None, None, None,
             'uncertainty on visibility amplitude'),
-        ('VISPHI',    True, 'D', (_NW,), None, 'deg', None,
+        ('VISPHI',    True, 'D', (_NW,), None, None, 'deg',
             'phase'), 
-        ('VISPHIERR', True, 'D', (_NW,), None, 'deg', None,
+        ('VISPHIERR', True, 'D', (_NW,), None, None, 'deg', 
             'uncertainty on phase'),
     ]
     
@@ -151,23 +151,23 @@ Second revision of the OI_VIS binary table, OIFITS v. 2.
 
     """
     _COLUMNS = [
-        ('CORRINDX_VISAMP',  False, '1J', (),        _spos, None,  None,
+        ('CORRINDX_VISAMP',  False, '1J', (),        _spos, None, None,
             'index on 1st amp. in matching OI_CORR matrix'), 
-        ('CORRINDEX_VISPHI', False, '1J', (),        _spos, None,  None,
+        ('CORRINDEX_VISPHI', False, '1J', (),        _spos, None, None,
             'index on 1st phase in matching OI_CORR matrix'),
-        ('RVIS',             False, 'D', (_NW,),     None,  'any', None,
-            'real part of correlated flux'), 
-        ('RVISERR',          False, 'D', (_NW,),     None,  'any', None,
-            'uncertainty on real part of correlated flux'),
-        ('IVIS',             False, 'D', (_NW,),     None,  'any', None,
-            'imag. part of correlated flux'), 
-        ('IVISERR',          False, 'D', (_NW,),     None,  'any', None,
+        ('RVIS',             False, 'D', (_NW,),     None,  None, 'any', 
+            'real part of correlated flux'),                     
+        ('RVISERR',          False, 'D', (_NW,),     None,  None, 'any', 
+            'uncertainty on real part of correlated flux'),      
+        ('IVIS',             False, 'D', (_NW,),     None,  None, 'any', 
+            'imag. part of correlated flux'),                    
+        ('IVISERR',          False, 'D', (_NW,),     None,  None, 'any', 
             'uncertainty on imag. part of correlated flux'),
-        ('CORRINDX_RVIS',    False, '1J', (),        _spos, None,  None,
-            'index of 1st RVIS in matching OI_CORR matrix'), 
-        ('CORRINDEX_IVIS',   False, '1J', (),        _spos, None,  None,
+        ('CORRINDX_RVIS',    False, '1J', (),        _spos, None, None,
+            'index of 1st RVIS in matching OI_CORR matrix'),
+        ('CORRINDEX_IVIS',   False, '1J', (),        _spos, None, None,
             'index of 1st IVIS in matching OI_CORR matrix'),
-        ('VISREFMAP',        False, 'L', (_NW,_NW,), None,  None,  None,
+        ('VISREFMAP',        False, 'L', (_NW,_NW,), None,  None, None,
             'reference channels for differential quantities'),
     ]
     

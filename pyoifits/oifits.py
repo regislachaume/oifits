@@ -83,6 +83,7 @@ hdulists1, hdulist2, ...
 
 def _merge(*hdulists, _inplace=False):
 
+
     # Use the latest OIFITS version used by the OIFITS to be merged
     # We order them by newest version first.
 
@@ -90,16 +91,23 @@ def _merge(*hdulists, _inplace=False):
     order = _np.argsort(oiver)[::-1]
     hdulists = [hdulists[o] for o in order]
     
+    
     maxver = oiver[order[0]]
     cls = type(hdulists[order[0]])
 
     # Copy files if necessary
     if not _inplace:
         hdulists = [hdulist.copy() for hdulist in hdulists]
+    
+    # Trick to avoid Delayed columns
+    # for hdulist in hdulists:
+    #    for hdu in hdulist:
+    #        nope = hdu.data
 
     # A flat array containing all HDUs.  They keep knowledge of their
     # container.
     hdus = [hdu for hdulist in hdulists for hdu in hdulist]
+
     
     # The processing steps:
     # * build a composite header from OIFITS primary headers
@@ -121,9 +129,9 @@ def _merge(*hdulists, _inplace=False):
     _merge_OITableHDUs(hdus, cls=_DataHDU)
 
     # * if some extensions are of the wrong version, convert them
-    for hdu in hdus:
+    for i, hdu in enumerate(hdus):
         if isinstance(hdu, _ValidHDU):
-            hdu._to_version(maxver)
+            hdus[i] = hdu.to_version(maxver)
     
     # * update the primary HDU header inferring some keywords from 
     #   contents
@@ -289,8 +297,7 @@ target_name_match (bool, default: False)
 
         return f"<{name}: {' '.join(str_)}>"
    
-    def __init__(self, hdus=[], file=None, *, _copy_hdus=True):
-    
+    def __init__(self, hdus=[], file=None):
         super().__init__(hdus=hdus, file=file)  
         for hdu in list.__iter__(hdus):
             hdu._container = self
@@ -349,6 +356,8 @@ Update the (u, v) coordinates (UCOORD, VCOORD) using information of
 the array and target information contained in OI_ARRAY and OI_TARGET 
 tables.
 
+It is a low-precision routine not meant for high precision work.
+
 Warnings
 --------
 
@@ -360,6 +369,8 @@ a. (UCOORD, VCOORD) can be averaged independently from MJD
 b. Atmospheric refraction is dealt with approximately, while (UCOORD,
    VCOORD) may have none to full modelling of the atmosphere.
 
+For the VLTI, the difference amount to 0.1-0.2% error on baselines
+(a few centimetres).
 
         """
         for hdu in self.get_dataHDUs():
@@ -418,6 +429,9 @@ Get all HDUs containing an OI binary table
         """
         return self.get_HDUs(_OITableHDU)
 
+    def get_arrayHDUs(self):
+        return self.get_HDUs(_ArrayHDU)
+    
     def get_arrayHDU(self, arrname):
         """
 Get HDU containing array description (OI_ARRAY)
@@ -443,7 +457,7 @@ Get the HDU containing target information (OI_TARGET)
 Get all HDUs containing wavelength information (OI_WAVELENGTH)
         """
         return self.get_HDUs(_WavelengthHDU)
-    
+
     def get_wavelengthHDU(self, insname):
         """
 Get the HDU containing wavelength information (OI_WAVELENGTH) of a 
@@ -520,13 +534,25 @@ observable per line
         raise NotImplementedError()
 
     def copy(self):
-        return  type(self)([h.copy() for h in self])
+        """
+
+Create a duplicate of an OIFITS, without an attached file, with data 
+and header are copied
+
+        """
+        return type(self)([h.copy() for h in self])
 
     def __add__(self, other):
         return merge(self, other)
 
     def update_extver(self):
+        """
 
+Update the EXTVER header keyword in extensions sharing the same name. 
+While certainly unused by applications, this is a requirement of the
+FITS standard.
+
+        """
         extnames = _np.unique(h.header.get('EXTNAME', None) for h in self[1:])
         for extname in extnames:
             hdus = [h for h in self[1:] 
@@ -557,8 +583,10 @@ n (int: 1 or 2)
 
     def update_primary_header(self):
         """
+
 Update the primary header to match the information in OI table 
 extensions
+
         """ 
         header = self[0].header
         datahdus = self.get_dataHDUs()
@@ -620,13 +648,11 @@ extensions
                 header[keyw] = 'UNKNOWN'
 
 class OIFITS1(_OIFITS):
-    """Top-level class of Optical Interferometry FITS format.
-When a fits file is opened an OIFITS1 or OIFITS2  object is returned."""
+    """Top-level class of Optical Interferometry FITS format, version 1."""
     _OI_VER = 1
 
 class OIFITS2(_OIFITS):
-    """Top-level class of Optical Interferometry FITS format.
-When a fits file is opened an OIFITS1 or OIFITS2  object is returned."""
+    """Top-level class of Optical Interferometry FITS format, version 2."""
     _OI_VER = 2
 
 set_merge_settings = _OIFITS.set_merge_settings

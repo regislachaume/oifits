@@ -392,7 +392,7 @@ Raises
 ------
 
 NotImplemented Error
-    There is no associated OI_ARRAY table (OIFITS v. 1)
+    There is no associated OI_ARRAY table (possible in OIFITS v. 1)
         """   
         arrayHDU = self.get_arrayHDU() 
         waveHDU = self.get_wavelengthHDU()
@@ -418,6 +418,7 @@ NotImplemented Error
         # ITRS coordinates. We need to go through altaz because astropy.
         FK5 = self.get_sky_coord(max_distance=1 * _units.Mpc)
         altaz_frame = _coo.altaz_frame(loc, obswl=obswl, refraction=refraction)
+        # print(f"{FK5.ra[0]=} {FK5.dec[0]=}")
 
         UVW = _np.empty_like(XYZ)      
  
@@ -442,8 +443,10 @@ NotImplemented Error
             lon = itrs.lon.value # target longitude in ITRS (opposite of hour
                                  # angle for an observer at Greenwich meridian)
             lat = itrs.lat.value # target declination in ITRS
- 
-            wuv = -_u.rotation3d(xyz, 'zy', [-lon, lat], degrees=True)
+            #if i == 0:
+            #    print(f"{altaz.alt=} {altaz.az=}")
+            #    print(f"{lon=} {lat=}") 
+            wuv = _u.rotation3d(xyz, 'zy', [-lon, lat], degrees=True)
             uvw = _np.roll(wuv, -1, axis=-1)
 
             UVW[i] = uvw

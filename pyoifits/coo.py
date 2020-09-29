@@ -83,7 +83,11 @@ altaz (astropy.coordinates.AltAz)
     return frame
 
 def apply_space_motion(coo, obstime, correct_motion=True):
+    """
 
+Update coordinates to current epoch
+
+    """
     # set new epoch
     dt = obstime - coo.obstime
     coo.obstime = obstime

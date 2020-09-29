@@ -22,14 +22,19 @@ class _ValidHDU(
 ):
 
     def copy(self):
-        cls = self.__class__
-        result = cls.__new__(cls)
-        for k, v in sorted(self.__dict__.items()):
-            if k not in ['_container', '_file']:
-                v = _copy.deepcopy(v)
-            setattr(result, k, v)
-        return result
+        """
 
+Create a duplicate of an OIFITS extension or primary header, with data
+and header are copied.
+
+        """
+        data = self.data
+        if data is not None:
+            data = data.copy()
+        cp = type(self)(data=data, header=self.header.copy())
+        if hasattr(self, '_container'):
+            cp._container = self._container
+        return cp
 
     def get_container(self):
         return getattr(self, '_container', None)
@@ -102,20 +107,15 @@ class _ValidHDU(
 
         return (arr1, ins1, corr1, mjd1, id1) <  (arr2, ins2, corr2, mjd2, id2)
 
-    def _to_version(self, version):
+    def to_version(self, version):
        
         if self._OI_VER == version:
-            return
- 
-        self.__class__ = self.get_class(version=version)
+            return self
 
-    def to_version(self, version):
+        newclass = self.get_class(version=version) 
+        newobj =  newclass(data=self.data, header=self.header)
 
-        new = self.copy()
-        new._to_version(version)
-        new._verify('silentfix+ignore')
-        
-        return new 
+        return newobj 
 
     @classmethod
     def get_class(cls, version=2):

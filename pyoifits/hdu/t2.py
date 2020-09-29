@@ -61,6 +61,6 @@ Precision
         if self.get_arrayHDU() is None:
             return
 
-        u, v, w = self.compute_uvw()
+        u, v, w = self.get_uvw()
         self.UCOORD = u
         self.VCOORD = v
