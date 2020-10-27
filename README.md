@@ -7,9 +7,9 @@ the standards
 
 ## Installation
 
-Site-wide installation will be performed with `sudo -H pip3 install oifits` on unix-like systems.
+Site-wide installation will be performed with `sudo -H pip3 install pyoifits` on unix-like systems.
 
-At a user level, within a [virtual environment](https://docs.python.org/3/library/venv.html "venv package"), `pip3 install oifits`. 
+At a user level, within a [virtual environment](https://docs.python.org/3/library/venv.html "venv package"), `pip3 install pyoifits`. 
 
 ## Short example
 
@@ -24,7 +24,10 @@ data2 = oifits.read('file2.fits')
 
 data = data1 + data2
 
-tab = data.to_table()
+tab, C = data.to_table(correlations='numpy')
+val = tab['value']
+err = tab['error']
+covar = C * np.outer(err, err)
 ```
 
 There is also a short [demo](https://github.com/loqueelvientoajuarez/oifits/blob/master/demo/intro.ipynb "Jupyter notebook demo").
