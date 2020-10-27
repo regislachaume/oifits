@@ -97,28 +97,32 @@ uv (array of float):
         hdu.TARGET_ID = [index_map[id] for id in hdu.TARGET_ID]
         return hdu
     
-    def _table_colnames(self, full_uv=False): 
+    def _table_colnames(self, full_uv=False, correlations=False): 
 
         COORD = self._get_uvcoord_names(full_uv=full_uv)
-            
+        CORREL = []
+        if correlations:
+            CORREL = ['CORRNAME', 'CORRINDX']
+
         return [
             'TARGET', 'CHANNEL', 'REF_CHANNEL_BITFIELD',
             'EFF_WAVE', 'EFF_BAND', *COORD, 
-            'observable', 'type', 'value', 'error', 'INSNAME',
-            'ARRNAME', 'STA_CONFIG', 'MJD', 'INT_TIME'
+            'observable', 'type', 'value', 'error', *CORREL,
+            'INSNAME', 'ARRNAME', 'STA_CONFIG', 'MJD', 'INT_TIME'
         ]
 
-    def _table_cols(self, full_uv=False):
+    def _table_cols(self, full_uv=False, correlations=False):
         
-        names = self._table_colnames(full_uv=full_uv)
+        names = self._table_colnames(full_uv=full_uv, correlations=correlations)
         cols = []
 
         colnames = self.columns.names
         obs_names = [n for n in self.get_observable_names() if n in colnames]
         err_names = [n for n in self.get_error_names() if n in colnames]
-
+        
         def getf(n): return self.get_field(n, 'data', True, default=0)
         def gett(n): return self.get_obs_type(n, 'data', True)
+        def getc(n): return self.get_corrindx(n, 'data', True)
         def resize(x): return self._resize_data(x, 'data', True)
         def hstack(x): return _ma.hstack(x)
         
@@ -131,6 +135,8 @@ uv (array of float):
                 col = _np.hstack([resize(n) for n in obs_names])
             elif name == 'type':
                 col = _np.hstack([gett(n) for n in obs_names])
+            elif name == 'CORRINDX':
+                col = _np.hstack([getc(n) for n in obs_names])
             else:
                 col = hstack([getf(name)] * len(obs_names))
             cols.append(col)
@@ -210,11 +216,26 @@ If the quantity is not differential, 0 is returned.
         visref = self._resize_data(0, 'data', flatten)
         return _ma.masked_array(visref, mask=True)
 
-    def _to_table(self, full_uv=False):
+    def _to_table(self, full_uv=False, correlations=False, remove_masked=False):
 
-        names = self._table_colnames(full_uv=full_uv)
-        cols = self._table_cols(full_uv=full_uv)
-        return _table.Table(cols, names=names)
+        names = self._table_colnames(full_uv=full_uv, correlations=correlations)
+        cols = self._table_cols(full_uv=full_uv, correlations=correlations)
+        tab = _table.Table(cols, names=names)
+
+        if remove_masked:
+            keep = ~tab['value'].mask 
+            tab = tab[keep]
+
+        coord_names = self._get_uvcoord_names(full_uv=full_uv)
+        for x in ['INT_TIME', *coord_names]:
+            tab.columns[x].format = '7.3f'
+        for x in ['EFF_WAVE', 'EFF_BAND']:
+            tab.columns[x].format = '7.5e'
+        tab.columns['MJD'].format = '7.5f'
+        for x in ['value', 'error']:
+            tab.columns[x].format = '7.5g'
+        
+        return tab
 
     @classmethod
     def _get_uvcoord_names(cls, full_uv=False):
@@ -226,18 +247,16 @@ If the quantity is not differential, 0 is returned.
         names = sorted(names, key=lambda x: x[1::-1])
         return names
 
-    def to_table(self):
+    def to_table(self, remove_masked=False):
         """
 
 Convert to a flat table.
 
-Arguments:
-----------
-    
-full_uv (bool):
-    Whether to systematically include (u1, v1, u2, v2) coordinates even
-    if some of them are not relevant (e.g. flux or 2T data).  In that case
-    they are NaN.
+Arguments
+---------
+
+remove_masked (bool, default: False)
+    Remove masked values.
 
 Returns:
 --------
@@ -246,15 +265,6 @@ Returns:
 
         """
         tab = self._to_table()
-        coord_names = self._get_uvcoord_names()
-
-        for x in ['INT_TIME', *coord_names]:
-            tab.columns[x].format = '7.3f'
-        for x in ['EFF_WAVE', 'EFF_BAND']:
-            tab.columns[x].format = '7.5e'
-        tab.columns['MJD'].format = '7.5f'
-        for x in ['value', 'error']:
-            tab.columns[x].format = '7.5g'
         
         return tab
 
@@ -489,7 +499,41 @@ class _DataHDU2(
         _MayHaveInspolHDU,
         _OIFITS2HDU, 
       ):
-    pass
+    def _verify(self, option='warn'):
+
+        errors = super()._verify(option=option)
+
+        obs_names =  self.get_observable_names()
+        index = _np.ma.hstack([self.get_corrindx(n, flatten=True) 
+                                                for n in obs_names])
+        index = index[~index.mask]
+        unique = _np.unique(index)
+        if len(unique) < len(index):
+            err_txt = 'repeated CORRINDX'
+            self.run_option(option, err_txt, fixable=False)
+        if _np.any(index <= 0):
+            err_txt = 'negative or null CORRINDX'
+            self.run_option(option, err_txt, fixable=False)
+    
+        return errors
+
+    def get_corrindx(self, obsname, shape='none', flatten=False):
+
+        corrindex_name = obsname + '_CORRINDEX'
+        if corrindex_name not in self.columns.names:
+            corrindex = _np.zeros_like(self.data[obsname], dtype=int)
+            corrindex = _np.ma.masked_equal(corrindex, 0)
+        else:
+            corrindex = self.data[corrindex_name]
+            relindex = _np.arange(self.get_nwaves())
+            corrindex = corrindex[:,None] + relindex
+            corrindex = _np.ma.masked_array(corrindex, mask=self.FLAG)
+
+        if flatten:
+            corrindex = corrindex.ravel()
+
+        return corrindex
+
 
 # OIFITS2 Table rev1 (new table in OIFITS2)
 class _DataHDU21(

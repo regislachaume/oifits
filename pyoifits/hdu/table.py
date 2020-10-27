@@ -472,7 +472,7 @@ the standard.
     def get_observable_names(cls, required=False):
         cols = cls._get_spec_colnames(required)
         return [c for c in cols if c[-3:] != 'ERR' and c != 'FLAG']
-    
+
     @classmethod
     def _get_spec_colnames(cls, required=False):
         cols = cls._get_spec_columns(required)

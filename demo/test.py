@@ -57,11 +57,11 @@ vis2 = pyoifits.new_vis2_hdu(insname=insname, arrname=arrname, mjd=mjd,
         vis2err=vis2err)
 
 obs = pyoifits.OIFITS2([pyoifits.PrimaryHDU2(), target, array, wavelength, vis2])
-vis2 = oifits1[-4]
+#vis2 = oifits1[-4]
 # 
-for c in 'XYZ':
-    oifits1[1].header['ARRAY' + c] = array.header['ARRAY' + c]
-    oifits1[1].STAXYZ = array.STAXYZ
+#for c in 'XYZ':
+#    oifits1[1].header['ARRAY' + c] = array.header['ARRAY' + c]
+#    oifits1[1].STAXYZ = array.STAXYZ
 
 #print('no ref')
 #uvw = vis2.get_stauvw()

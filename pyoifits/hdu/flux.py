@@ -4,11 +4,10 @@ the calibrated fluxes of the targets or the uncalibrated fluxes measured
 at the interferometer aperture. 
 """
 
-from .table import _OITableHDU21
 from .target import _MustHaveTargetHDU
 from .array import _MayHaveArrayHDU
 from .wavelength import _MustHaveWavelengthHDU, _NW
-from .data import _DataHDU
+from .data import _DataHDU, _DataHDU21
 from .. import utils as _u
 
 
@@ -136,7 +135,7 @@ column with its name prefixed with NS_
 
 class FluxHDU1(
         _FluxHDU,
-        _OITableHDU21,
+        _DataHDU21,
       ):
     """
 

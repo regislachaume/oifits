@@ -51,7 +51,8 @@ setuptools.setup(
     python_requires='>=3.8',
     install_requires=[
         "astropy>=4.0", 
-        "numpy>=2.0",
-        "scipy",
+        "numpy>=1.17",
+        "scipy>=1.5",
+        "astroquery>=0.4",
     ],
 )
