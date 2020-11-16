@@ -15,6 +15,10 @@ from .hdu.table import _OITableHDU
 from .hdu.data import _DataHDU
 from .hdu.target import _TargetHDU
 from .hdu.array import _ArrayHDU
+from .hdu.t3 import _T3HDU
+from .hdu.vis2 import _Vis2HDU
+from .hdu.vis import _VisHDU
+from .hdu.flux import _FluxHDU
 from .hdu.wavelength import _WavelengthHDU
 from .hdu.referenced import _Referenced
 from .hdu.corr import _CorrHDU
@@ -446,12 +450,33 @@ arrname (str)
         """
         def same_arrname(h): return h.get_arrname() == arrname
         return self.get_HDU(_ArrayHDU, same_arrname)
+    
+    def get_vis2HDU(self):
+        """
+Get the HDUs containing square visibility amplitude data
+        """
+        return self.get_HDUs(_Vis2HDU)
+    
+    def get_visHDU(self):
+        """
+Get the HDUs containing square visibility data
+        """
+        return self.get_HDUs(_VisHDU)
+    
+    def get_t3HDU(self):
+        """
+Get the HDUs containing closure (3T) data
+        """
+        return self.get_HDUs(_T3HDU)
 
     def get_targetHDU(self):
         """
 Get the HDU containing target information (OI_TARGET)
         """
         return self.get_HDU(_TargetHDU) 
+
+    def get_fluxHDUs(self):
+        return self.get_HDUs(_FluxHDU)
 
     def get_wavelengthHDUs(self):
         """
@@ -493,6 +518,10 @@ corrname:
         """
         def same_corrname(h): h.get_corrname() == corrname
         return self.get_HDU(_CorrHDU, same_corrname)
+
+    def get_inspolHDUs(self):
+
+        return self.get_HDUs(_InspolHDU)
 
     def get_inspolHDU(self, arrname):
         """
@@ -652,8 +681,10 @@ extensions
             header['EQUINOX'] = targets['EQUINOX'][0]
             header['MJD-OBS'] = mjdobs
             header['MJD-END'] = mjdend
-            header['WAVELMIN'] = min(h.EFF_WAVE.min() for h in wavehdus)
-            header['WAVELMAX'] = max(h.EFF_WAVE.max() for h in wavehdus)
+            wavelmin = min(h.EFF_WAVE.min() for h in wavehdus)
+            header['WAVELMIN'] = float(f"{wavelmin:10.4g}")
+            wavelmax = max(h.EFF_WAVE.max() for h in wavehdus)
+            header['WAVELMAX'] = float(f"{wavelmax:10.4g}")
         else:
             for keyw in ['RA', 'DEC', 'UTC', 'LST', 'EQUINOX', 'RADECSYS', 
                 'TEXPTIME', 'MJD-OBS', 'MJD-END', 'BASE_MIN', 'BASE_MAX', 

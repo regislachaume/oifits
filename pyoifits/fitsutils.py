@@ -145,7 +145,7 @@ def merge_columns(*hdus):
 def merge_rows(*rows, id_name=None, equality=lambda x,y: x==y):
 
     if id_name is None:
-        return rows, [{}]
+        return rows, [{}] * len(rows)
 
     # New unused IDs (in a sequence, avoiding the ones in either
     rows1 = rows[0]

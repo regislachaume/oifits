@@ -115,9 +115,6 @@ def is_oifits1(s):
 def is_nonempty(s):
     return type(s) is str and len(s)
 
-def is_num(s):
-    return isinstance(s, (int, float))
-
 def is_one(s):
     return s == 1
 
@@ -133,23 +130,31 @@ def is_amptyp_rev2(s):
 def is_phityp_rev2(s):
     return s in ['absolute', 'differential']
 
+def is_num(s):
+    return isinstance(s, (int, float, np.number))
+
 def is_strictposnum(i):
-    return isinstance(i, (int, float)) and i > 0
+    return is_num(i) and i > 0
 
 def is_posnum(i):
-    return isinstance(i, (int, float)) and i >= 0
-
-def is_posint(i):
-    return isinstance(i, int) and i >= 0
-
-def is_strictposint(i):
-    return isinstance(i, int) and i > 0
-
-def is_strictpos(x):
-    return isinstance(x, (int, float)) and x > 0
+    return is_num(i) and i >= 0
 
 def is_pos(x):
-    return isinstance(x, (int, float)) and x >= 0
+    return is_num(x) and x >= 0
+
+def is_strictpos(x):
+    return is_num(x) and x > 0
+
+
+def is_int(i):
+    return isinstance(i, (int, np.integer))
+
+def is_strictposint(i):
+    return is_int(i) and i > 0
+
+def is_posint(i):
+    return is_int(i) and i >= 0
+
 
 def is_category(s):
     return s in ['SCI', 'CAL']

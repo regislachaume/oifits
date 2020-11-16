@@ -131,6 +131,15 @@ column with its name prefixed with NS_
         errors = super()._verify(option)
         if err:
             errors.append(err)
+
+    def __mod__(self, other):
+
+        h1, h2 = self.header, other.header
+
+        return (super().__mod__(other) and
+                h1['CALSTAT'] == h2['CALSTAT'] and
+                h1.get('FOV', 0) == h2.get('FOV', 0) and
+                h1.get('FOVTYPE', '') == h2.get('FOVTYPE', ''))
  
 
 class FluxHDU1(

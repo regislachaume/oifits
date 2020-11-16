@@ -96,7 +96,7 @@ class PrimaryHDU2(
         ('OBSTECH',  False, _u.is_nonempty,      'N/A', 'beam recombination technique'),
         ('RA',       False, _u.is_num,           None, 'right ascension (deg)'),
         ('DEC',      False, _u.is_num,           None, 'declination (deg)'),
-        ('EQUINOX',  False, _u.is_num,           2000.0, 'equinox (yr)'),
+        ('EQUINOX',  False, _u.is_num,           2000., 'equinox (yr)'),
         ('RADECSYS', False, _u.is_nonempty,      'ICRS', 'celestial coordinate frame'),
         ('SPECSYS',  False, _u.is_nonempty,      'N/A', ''),
         ('TEXPTIME', False, _u.is_strictpos,     None, 'total exposure time'),

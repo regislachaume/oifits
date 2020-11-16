@@ -242,5 +242,15 @@ Second revision of the OI_VIS binary table, OIFITS v. 2.
                     errors.append(err)
         
         return errors
+
+    def __mod__(self, other):
+
+        h1, h2 = self.header, other.header
+
+        return (super().__mod__(other) and
+                h1.get('AMPTYP', '') == h2.get('AMPTYP', '') and
+                h1.get('PHITYP', '') == h2.get('PHITYP', '') and
+                h1.get('AMPORDER', 0) == h2.get('AMPORDER', 0) and
+                h1.get('PHIORDER', 0) == h2.get('PHIORDER', 0))
         
 new_vis_hdu = _VisHDU.from_data

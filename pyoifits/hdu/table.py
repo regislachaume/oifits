@@ -525,9 +525,11 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
         merged = cls.from_columns(columns, nrows=nrows, fill=1, header=header)
         
         rowmin = 0
-        for data, map in zip(rows, maps):
+        for i, (data, map) in enumerate(zip(rows, maps)):
+        
             ndata = len(data)
             rowmax = rowmin + ndata
+
             for name in data.names:
                 if map and name == id_name:
                     values = [map.get(i, i) for i in data[name]]

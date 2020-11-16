@@ -31,3 +31,23 @@ covar = C * np.outer(err, err)
 ```
 
 There is also a short [demo](https://github.com/loqueelvientoajuarez/oifits/blob/master/demo/intro.ipynb "Jupyter notebook demo").
+
+## Release notes
+
+### 0.4
+
+New features:
+* Method `to_table()` optionally returns a correlation matrix
+
+### 0.4.1
+
+Bug fixes:
+* `WAVELMIN` & `WAVELMAX` FITS keywords have a correct number of significant digits
+* `EQUINOX` FITS keyword now passes verification
+* No runtime error when a duplicate `INSNAME` has to be renamed
+* OI data (`OI_VIS`, `OI_VIS2`, `OI_T3`, `OI_FLUX`) tables merge correctly
+* `OI_VIS` tables with different `PHITYP`, `AMPTYP`, `AMPORDER`, or `PHIORDER` can no longer be merged
+* `OI_FLUX` tables with different `FOV` or  `FOVTYPE` can not longer be merged
+
+New features:
+* `OIFITS1` & `OIFITS2` classes have `get_visHDUs`, `get_vis2HDUs`, `get_T3HDUs` methods

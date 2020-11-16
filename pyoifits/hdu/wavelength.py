@@ -87,7 +87,7 @@ class _WavelengthHDU(_MustHaveWavelengthHDU,_Referenced):
         if container is None:
             return
 
-        for h in h.get_inspolHDUs():
+        for h in container.get_inspolHDUs():
             to_rename = h.data['INSNAME'] == oldname
             h.data['INSNAME'][to_rename][...] = new_name
 
