@@ -13,3 +13,7 @@ for hdulist in hdulists:
 
 hdulist = oifits.merge(*hdulists)
 hdulist.verify('fix+warn')
+
+fig = hdulist.visualize('spatial_frequency', 'VIS2DATA', target='CO_Ori_A',
+        insname='GRAVITY_SC')
+fig.show()

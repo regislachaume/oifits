@@ -216,15 +216,39 @@ If the quantity is not differential, 0 is returned.
         visref = self._resize_data(0, 'data', flatten)
         return _ma.masked_array(visref, mask=True)
 
-    def _to_table(self, full_uv=False, correlations=False, remove_masked=False):
+    def _to_table(self, full_uv=False, correlations=False, remove_masked=False,
+            observable=None, observable_type=None, mjd_min=None, mjd_max=None,
+            target=None, arrname=None, insname=None, 
+            wavelmin=None, wavelmax=None):
 
         names = self._table_colnames(full_uv=full_uv, correlations=correlations)
         cols = self._table_cols(full_uv=full_uv, correlations=correlations)
         tab = _table.Table(cols, names=names)
 
+        keep = _np.ones_like(tab['MJD'], dtype=bool)
+
         if remove_masked:
-            keep = ~tab['value'].mask 
-            tab = tab[keep]
+            keep *= ~tab['value'].mask 
+        if mjd_min is not None:
+            keep *= tab['MJD'] >= mjd_min
+        if mjd_max is not None:
+            keep *= tab['MJD'] <= mjd_max
+        if wavelmin is not None:
+            keep *= tab['EFF_WAVE'] >= wavelmin
+        if wavelmax is not None:
+            keep *= tab['EFF_WAVE'] <= wavelmax
+        if observable is not None:
+            keep *= _np.in1d(tab['observable'], _np.atleast_1d(observable))
+        if observable_type is not None:
+             keep *= _np.in1d(tab['type'], _np.atleast_1d(observable_type))
+        if target is not None:
+            keep *= _np.in1d(tab['TARGET'], _np.atleast_1d(target))
+        if arrname is not None:
+            keep *= _np.in1d(tab['ARRNAME'], _np.atleast_1d(arrname))
+        if insname is not None:
+            keep *= _np.in1d(tab['INSNAME'], _np.atleast_1d(insname))
+
+        tab = tab[keep]
 
         coord_names = self._get_uvcoord_names(full_uv=full_uv)
         for x in ['INT_TIME', *coord_names]:
@@ -247,10 +271,11 @@ If the quantity is not differential, 0 is returned.
         names = sorted(names, key=lambda x: x[1::-1])
         return names
 
-    def to_table(self, remove_masked=False):
+    def to_table(self, remove_masked=False, **kwargs):
         """
 
-Convert to a flat table.
+Convert to a flat table.  It is possible to only keep data corresponding
+to a given list of targets, observables, or date range. 
 
 Arguments
 ---------
@@ -258,13 +283,40 @@ Arguments
 remove_masked (bool, default: False)
     Remove masked values.
 
+observable (default: all are kept) 
+    Observable or list of observables (e.g. VIS2DATA)
+
+observable_type  (default: all are kept)
+    Observable type or list of observable types (absolute, differential, etc.)
+
+target  (default: all are kept)
+    Target name or list of target names
+
+insname  (default: all are kept)
+    Instrument configuration name or list thereof
+
+arrname  (default: all are kept)
+    Array name or list of array names
+
+mjd_min  (default: -inf)
+    Minimum Modified Julian date
+
+mjd_max  (default: -inf)
+    Maximum Modified Julian date
+
+wavelmin (default: 0)
+    Minimum wavelength
+
+wavelmax (default: +inf)
+    Maximum wavelength
+
 Returns:
 --------
 
     An astropy.table.Table with one scalar observable per line.
 
         """
-        tab = self._to_table()
+        tab = self._to_table(remove_masked=remove_masked, **kwargs)
         
         return tab
 

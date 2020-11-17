@@ -51,3 +51,11 @@ Bug fixes:
 
 New features:
 * `OIFITS1` & `OIFITS2` classes have `get_visHDUs`, `get_vis2HDUs`, `get_T3HDUs` methods
+
+### 0.4.2
+
+New features:
+* `to_table()` allows the user to restrict to a subset of target names, 
+instrument setup names, arrays, wavelength range, and/or date range
+* OIFITS classes have new method `visualize()` to plot an interferometric
+observable as a function of time, baseline length, or spatial frequency.
