@@ -228,7 +228,17 @@ Syntax: tab.rename_columns(oldname1=newname1, ...)
             self.columns[old].name = new
 
         self.update()
- 
+
+        # pyfits go look to column names in base class sometimes and it
+        # doesn't always get updated.
+        base = self.data
+        while (isinstance(base, _fits.FITS_rec) and
+                isinstance(base.base, _np.recarray)):
+            base = base.base
+        base.dtype = self.data.dtype
+                
+
+
     def _verify(self, option='warn'):
         
         errors = super()._verify(option)

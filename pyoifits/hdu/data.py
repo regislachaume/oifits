@@ -9,6 +9,7 @@ from .inspol import _MayHaveInspolHDU
 from .. import utils as _u
 from .. import coo as _coo
 
+from astropy.io import fits as _fits
 from astropy import table as _table
 from astropy import units as _units
 from numpy import ma as _ma
@@ -514,6 +515,61 @@ NotImplemented Error
             UVW[i] = uvw
 
         return UVW
+
+    def _bin_column(self, weights, obs_name, err_name):
+
+        data = self.data[obs_name]
+        
+        # spurious zero error replaced by the minimum error.  For
+        # GRAVITY it only seems that's for flagged data anyway...
+        error = self.data[err_name]
+        error[error == 0] = error[error != 0].min()
+        
+        datamask = self.FLAG | _np.isnan(data)
+        data = _ma.masked_array(data, mask=datamask)
+        inverror2 = _ma.masked_array(error ** -2, mask=datamask)
+
+        wsum = _ma.dot(       inverror2, weights)
+        dsum = _ma.dot(data * inverror2, weights)
+
+        new_data = dsum / wsum
+        new_error = wsum ** -0.5
+
+        nchan = new_data.shape[1]
+        col = self.columns[obs_name]
+        unit = col.unit
+        new_fmt = f"{nchan}{col.format[-1]}"
+
+        new_data = _fits.Column(obs_name, new_fmt, unit, array=new_data)
+        new_error = _fits.Column(err_name, new_fmt, unit, array=new_error)
+
+        return [new_data, new_error]
+
+    def _bin_helper(self, weights):
+
+        if weights is None:
+            return self.copy()
+
+        colnames = self.columns.names
+        obs_names = [n for n in self.get_observable_names() if n in colnames]
+        err_names = [n for n in self.get_error_names() if n in colnames]    
+        oi_colnames = [*obs_names, *err_names, 'FLAG']
+       
+        new_mask = _np.dot(~self.FLAG, weights) < 1 
+        
+        new_cols = []
+        for obs_name, err_name in zip(obs_names, err_names):
+            new_cols += self._bin_column(weights, obs_name, err_name)
+       
+        nchan = new_mask.shape[1] 
+        new_flag = _fits.Column('FLAG', f"{nchan}L", array=new_mask)
+        new_cols.append(_fits.Column('FLAG', f"{nchan}L", array=new_mask))
+       
+        new_cols += [c for c in self.columns if c.name not in oi_colnames]
+ 
+        binned_hdu = self.from_columns(new_cols, header=self.header)
+
+        return binned_hdu
 
 # OIFITS1 Table 
 class _DataHDU1(

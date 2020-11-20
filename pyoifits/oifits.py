@@ -403,13 +403,16 @@ filter (func)
 
         return hdus
     
-    def get_dataHDUs(self):
+    def get_dataHDUs(self, /, filter=None):
         """
-Get all HDUs containing optical interferometry data
-        """
-        return self.get_HDUs(_DataHDU)
+Get all HDUs containing optical interferometry data.  
 
-    def get_HDU(self, extype, filter=None):
+Keyword arguments
+
+        """
+        return self.get_HDUs(_DataHDU, filter)
+
+    def get_HDU(self, extype, /, filter=None):
         """
 Get the first HDU of a given extension type matching given criteria
 
@@ -621,6 +624,46 @@ and header are copied
 
     def __add__(self, other):
         return merge(self, other)
+
+    def bin_spectral_channels(self, R):
+        """
+
+Bin spectral channels down to a given spectral resolution.  HDUs with lower 
+resolution are left untouched.   
+
+If nchan is the number of resulting spectral channels, the resolution at the
+middle of the band will be between R and R * (1 + 1 / nchan)
+
+Argument
+--------
+
+R (float)
+    Desired spectral resolution.  
+
+Return value
+------------
+
+An OIFITS1 or OIFITS2 object.
+
+        """
+        if any(isinstance(h, (_CorrHDU, _InspolHDU)) for h in self):
+           msg = 'Binning OIFITS with correlation or polarimetry info'
+           raise NotImplementedError(msg)
+
+        hdulist = [h.copy() for h in self 
+                        if not isinstance(h, (_DataHDU, _WavelengthHDU))]
+
+        for whdu in self.get_wavelengthHDUs():
+
+            ins = whdu.get_insname()
+            whdu, weights = whdu._bin_helper(R)
+            
+            dhdus = self.get_dataHDUs(filter=lambda h: h.get_insname() == ins)
+            dhdus = [dhdu._bin_helper(weights) for dhdu in dhdus]
+
+            hdulist += [whdu, *dhdus]
+
+        return type(self)(hdulist)
 
     def update_extver(self):
         """

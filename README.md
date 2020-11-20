@@ -55,7 +55,15 @@ New features:
 ### 0.4.2
 
 New features:
-* `to_table()` allows the user to restrict to a subset of target names, 
+* Method `to_table()` allows the user to restrict to a subset of target names, 
 instrument setup names, arrays, wavelength range, and/or date range
 * OIFITS classes have new method `visualize()` to plot an interferometric
 observable as a function of time, baseline length, or spatial frequency.
+
+### 0.4.3
+
+Bug fixes:
+* Successive column renamings no longer lead to `KeyError`
+
+New features:
+* Method `bin_spectral_channels(R)` allows the user to rebin to a given spectral resolution.

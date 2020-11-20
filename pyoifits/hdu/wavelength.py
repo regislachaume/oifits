@@ -8,6 +8,8 @@ from .referenced import _Referenced
 
 from .. import utils as _u
 import numpy as _np
+from astropy.io import fits as _fits
+
 
 _NW = 'NWAVE'
 
@@ -126,6 +128,53 @@ column with its name prefixed with NS_
         columns = dict(eff_wave=eff_wave, eff_band=eff_band, **columns)
 
         return super().from_data(fits_keywords=fits_keywords, **columns)
+
+    def _bin_helper(self, R):
+
+        min, max = _np.minimum, _np.maximum
+
+        # convert to double precision (rounding errors in weights...)
+        wave = _np.asarray(self.get_wave(shape='wavelength'), dtype=float)
+        band = _np.asarray(self.get_band(shape='wavelength'), dtype=float)
+
+        winf, wsup = wave - band / 2,  wave + band / 2
+        wmin, wmax = winf[0], wsup[-1]
+        wmed = (wmin + wmax) / 2
+        R0 = wmed / ((wmax - wmin) / len(wave))
+
+        if R0 > R and len(wave) > 1:
+
+            nwave = int(_np.ceil(len(wave) * R / R0))
+
+            dw = (wmax - wmin) / nwave
+            w1 = winf[0] + dw / 2
+            w2 = wsup[-1] - dw / 2
+            new_wave = _np.linspace(w1, w2, nwave)
+            new_winf = new_wave - dw / 2
+            new_wsup = new_wave + dw / 2
+            new_band = _np.full((nwave,), dw)
+
+            weights = max(min(wsup, new_wsup[:,None])
+                            - max(winf, new_winf[:,None]), 0) / band
+            weights = weights.T
+            
+            oi_colnames = self._get_oi_colnames()
+            fmt = f"{nwave}E"
+
+            wave_col = _fits.Column('EFF_WAVE', fmt, 'm', array=new_wave) 
+            band_col = _fits.Column('EFF_BAND', fmt, 'm', array=new_band) 
+            other_cols = [c for c in self.columns if c.name not in oi_colnames]
+            cols = [wave_col, band_col, *other_cols]
+
+            new = self.from_columns(cols, header=self.header)
+
+        else:
+            
+            new = self.copy()
+            weights = None
+
+        return new, weights
+
 
 
 class WavelengthHDU1(
