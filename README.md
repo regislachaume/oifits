@@ -10,7 +10,7 @@ For a definition of the standards
 
 ### Installation
 
-Site-wide installation will be performed with `sudo -H pip3 install pyoifits` on unix-like systems.
+Site-wide installation will be performed with `sudo -H pip3 install [pyoifits](https://pypi.org/project/pyoifits/)` on unix-like systems.
 
 At a user level, within a [virtual environment](https://docs.python.org/3/library/venv.html "venv package"), `pip3 install pyoifits`. 
 
