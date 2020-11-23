@@ -17,4 +17,7 @@ Typical use
 
 from .oifits import *
 
-__version__ = "0.4.3r3"
+__version__ = "0.4.4"
+__author__ = "Régis Lachaume"
+__email__ = "regis.lachaume@gmail.com"
+__date__ = "2020-11-23"

@@ -3,23 +3,27 @@ from .table import _OITableHDU, _OITableHDU21
 from .wavelength import _NW
 from .. import utils as _u
 
+import numpy as _np
+
 class _InspolHDUBase(_OITableHDU):
 
     def get_inspolHDU(self):
 
-        if isinstance(self, InspolHDU_v1):
+        if isinstance(self, InspolHDU1):
             return self
 
         arrname = self.header.get('ARRNAME')
         def same_arrname(h): return h.get('ARRNAME', '') == arrname
-        hdus = self.get_HDUs(InspolHDU, filter=same_arrname)
+        container = self.get_container()
+        
+        hdus = container.get_HDUs(_InspolHDU, filter=same_arrname)
         if not hdus:
             return None
         return hdus[0]
 
     def get_jones_matrix(self, shape='data', flatten=False):
 
-        J = np.zeros((self.data_shape(), 2, 2), dtype=complex)
+        J = _np.zeros((*self.data_shape(), 2, 2), dtype=complex)
 
         inspol = self.get_inspolHDU()
 
@@ -110,7 +114,11 @@ First revision of the OI_INSPOL binary table, OIFITS v. 2
 
     def get_jones_matrix(self, shape='data', flatten=False):
 
-        J = np.empty((nrows, nwaves, 2, 2), dtype=complex)
+        poldata = self.data
+
+        nrows, nwaves = poldata['JXX'].shape
+        J = _np.empty((nrows, nwaves, 2, 2), dtype=complex)
+
         J[...,0,0] = poldata['JXX']
         J[...,0,1] = poldata['JXY']
         J[...,1,0] = poldata['JYX']

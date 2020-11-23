@@ -87,8 +87,8 @@ uv (array of float):
 
 
         """
-        uv = [self._resize_data(self.data[x], shape_flatten)
-                    for x in self._COORD_COLUMNS]
+        uv = [self._resize_data(self.data[x], shape, flatten)
+                    for x in self._get_uvcoord_names()]
 
         return _np.array(uv)
 
