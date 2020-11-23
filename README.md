@@ -33,6 +33,45 @@ covar = C * np.outer(err, err)
 
 There is also a short [demo](https://github.com/loqueelvientoajuarez/oifits/blob/master/demo/intro.ipynb "Jupyter notebook demo").
 
+## Classes and functions
+
+### Classes
+
+* `OIFITS1` (< `astropy.io.fits.HDUList`)
+** `PrimaryHDU1` (< `astropy.io.fits.PrimaryHDU`)
+** `TargetHDU1` (< `astropy.io.fits.BinTableHDU`) 
+** `ArrayHDU1` (< `astropy.io.fits.BinTableHDU`)
+** `WavelengthHDU1` (< `astropy.io.fits.BinTableHDU`)
+** `VisHDU1` (< `astropy.io.fits.BinTableHDU`)
+** `Vis2HDU1` (< `astropy.io.fits.BinTableHDU`)
+** `T3HDU1` (< `astropy.io.fits.BinTableHDU`)
+* OIFITS2 (< astropy.io.fits.HDUList)
+** `PrimaryHDU2` (< `astropy.io.fits.PrimaryHDU`)
+** `TargetHDU2` (< `astropy.io.fits.BinTableHDU`)
+** `ArrayHDU2` (< `astropy.io.fits.BinTableHDU`)
+** `WavelengthHDU2` (< `astropy.io.fits.BinTableHDU`)
+** `VisHDU2` (< `astropy.io.fits.BinTableHDU`)
+** `Vis2HDU2` (< `astropy.io.fits.BinTableHDU`)
+** `T3HDU2` (< `astropy.io.fits.BinTableHDU`)
+** `FluxHDU1` (< `astropy.io.fits.BinTableHDU`)
+** `CorrHDU1` (< `astropy.io.fits.BinTableHDU`)
+** `InspolHDU1` (< `astropy.io.fits.BinTableHDU`)
+
+### Functions
+
+* `open`
+* `openlist`
+* `merge`
+* `new_target_hdu`
+* `new_target_hdu_from_simbad`
+* `new_array_hdu`
+* `new_wavelength_hdu`
+* `new_vis_hdu`
+* `new_vis2_hdu`
+* `new_t3_hdu`
+* `new_flux_hdu`
+* `set_merge_settings`
+
 ## Related projects
 
 * [oifits](https://pypi.org/project/oifits/) reads an OIFITS file into a table
