@@ -289,7 +289,7 @@ Syntax: tab.rename_columns(oldname1=newname1, ...)
             if _u.NW in shape:
                 nwave = self.get_nwaves()
                 shape = tuple(nwave if d == _u.NW else d for d in shape)
-            if shape != dshape:
+            if shape != dshape and shape != (1,) and dshape != (): 
                 err_txt = f"Column {name}: shape is {dshape}, should be {shape}"
                 err = self.run_option(option, err_txt, fixable=False) 
                 errors.append(err)
@@ -605,18 +605,26 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
             for obs_name in obs_names:
                 if obs_name in columns:
                     shape = _np.shape(columns[obs_name])
-                    return shape
+                    if len(shape):
+                        return shape
             raise RuntimeError('cannot guess shape from data')
         
         oi_columns = cls._get_oi_columns()
         for name in oi_columns['name']:
             if name in columns:
                 shape = _np.shape(columns[name])
-                return shape
+                if len(shape):
+                    return shape
         raise RuntimeError('cannot guess shape from data')
          
     @classmethod
     def from_data(cls, *, version=None, fits_keywords={}, **columns):
+        
+        return cls._from_data(version=version,
+                    fits_keywords=fits_keywords, **columns)
+
+    @classmethod
+    def _from_data(cls, *, version=None, fits_keywords={}, **columns):
 
         if not hasattr(cls, '_OI_VER'):
             if version is None:
@@ -624,6 +632,9 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
             cls = cls.get_class(version=version)
 
         # FITS keywords and column names are upper case 
+        if isinstance(fits_keywords, _fits.Header):
+            fits_keywords = {c[0]: c[1:] for c in fits_keywords.cards}
+
         fits_keywords = {k.upper(): v for k, v in fits_keywords.items()
                                                     if v is not None}
         columns = {k.upper(): v for k, v in columns.items()}
@@ -639,7 +650,10 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
             name = card['name']
             comment = card['comment']
             if name in fits_keywords:
-                header.set(name, fits_keywords[name], comment)
+                value = fits_keywords[name]
+                if isinstance(value, (list, tuple)):
+                    value = value[0]
+                header.set(name, value, comment)
                 del fits_keywords[name]
             elif card['required']:
                 if card['default'] is not None:
@@ -692,7 +706,34 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
         
         tab = super().from_columns(fcols, header=header)
         return tab
-    
+
+    def _trim_helper(self, *, wave_filter=None, target_filter=None, 
+            insname_filter=None, keep_ns_columns=False):
+
+        columns = {}
+        standard_colnames = self._get_oi_colnames()
+
+        for column in self.columns:
+
+            colname = column.name
+            if not keep_ns_columns and colname not in standard_colnames:
+                continue
+            data = self.data[colname]
+            columns[colname.lower()] = data
+        
+        ahdu = self._from_data(fits_keywords=self.header, **columns)
+
+        return ahdu
+  
+    def ndata(self):
+
+        colnames = self._get_spec_colnames()
+        if len(colnames):
+            nobs = len(self.get_observable_names())
+            shape = self.data[colnames[0]].shape
+            return _np.prod(shape) * nobs
+
+        return len(self.data) 
 
 class _OITableHDU1(_OITableHDU):
     _OI_REVN = 1

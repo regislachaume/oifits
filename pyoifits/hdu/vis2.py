@@ -25,7 +25,8 @@ OI_VIS2 binary table extension containing the squared visibility amplitudes
         return self._resize_data('absolute', shape, flatten)
 
     @classmethod
-    def from_data(cls, *, vis2data, fits_keywords={}, **columns):
+    def from_data(cls, *, insname, mjd, vis2data, target_id, sta_index,
+            fits_keywords={}, **columns):
         """
 
 Build an OI_VIS2 table from data.  In the following NWAVE indicates the
@@ -88,9 +89,11 @@ Any additional keyword argument will be appended as a non-standard FITS
 column with its name prefixed with NS_ 
 
         """
-        columns = dict(vis2data=vis2data, **columns)
+        columns = dict(vis2data=vis2data, target_id=target_id,
+                sta_index=sta_index, **columns)
 
-        return super().from_data(fits_keywords=fits_keywords, **columns)
+        return super().from_data(insname=insname, mjd=mjd,
+                    fits_keywords=fits_keywords, **columns)
 
 class Vis2HDU1(
         _Vis2HDU,

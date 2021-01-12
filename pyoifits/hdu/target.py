@@ -387,8 +387,28 @@ class _TargetHDU(_MustHaveTargetHDU):
                  
         return self._merge_helper(*others, id_name='TARGET_ID', equality=eq)
 
+    def _trim_helper(self, *, target_filter=lambda targ: True, 
+            wave_filter=None, insname_filter=None, keep_ns_columns=False):
+
+        tkeep = _np.vectorize(target_filter)(self.get_target())
+        
+        columns = {}
+        data = self.data
+        standard_colnames = self._get_oi_colnames()
+        for column in self.columns:
+            colname = column.name
+            if not keep_ns_columns and colname not in standard_colnames:
+                continue
+            columns[colname.lower()] = data[colname][tkeep]
+
+        thdu = self._from_data(fits_keywords=self.header, **columns)
+
+        return thdu
+
+
+
     @classmethod
-    def from_data(cls, *, target_id=None, target, ra, dec, 
+    def from_data(cls, *, target_id=None, target, ra, dec,  
             fits_keywords={}, **columns):
         """
 
@@ -482,8 +502,8 @@ where equinox and epoch are equal, preferably 2000.0
         _u.store_default(columns, 'veldef', default='OPTICAL')
         _u.store_default(columns, 'equinox', default=2000.0)
 
-        columns = dict(target=target, target_id=target_id, raep0=ra,
-            decep0=dec, **columns) 
+        columns = dict(target=target, raep0=ra, decep0=dec,
+                target_id=target_id, **columns) 
 
         return super().from_data(fits_keywords=fits_keywords, **columns)
             

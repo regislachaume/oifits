@@ -48,6 +48,11 @@ class _CorrHDU(_MustHaveCorrHDU,_Referenced):
         ('CORR',  True, '1D', (), None,            None, None,
             'correlation C[IINDX,JINDX]')
     ]
+
+    def _trim_helper(self, *, keep_ns_columns=False, 
+            wave_filter=None, target_filter=None, insname_filter=None):
+
+        raise NotImplementedError('cannot trim correlated data...')
     
     def _verify(self, option='warn'):
 

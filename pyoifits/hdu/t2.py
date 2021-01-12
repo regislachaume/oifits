@@ -22,10 +22,13 @@ class _T2HDU(_DataHDU):
         return super().__getattr__(name)
 
     @classmethod
-    def from_data(cls, *, ucoord, vcoord, fits_keywords={}, **columns):
-        
-        return super().from_data(fits_keywords={}, ucoord=ucoord, vcoord=vcoord,
-                **columns)
+    def from_data(cls, *, insname, mjd, fits_keywords={}, **columns):
+       
+        _u.store_default(columns, 'ucoord', default=0.)
+        _u.store_default(columns, 'vcoord', default=0.)
+ 
+        return super().from_data(insname=insname, mjd=mjd,
+            fits_keywords=fits_keywords, **columns)
 
     def get_uvw(self, refraction=False):
         """

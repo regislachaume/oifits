@@ -74,7 +74,7 @@ An `OIFITS2` object (OIFITS standard version 2, < `_OIFITS` < `astropy.io.fits.H
     * `open` (open an OIFITS file)
     * `openlist` (open a list of files and merge them)
     * `merge` (merge several OIFITS)
-    * `set_merge_settings`
+    * `set_merge_settings` (determine how duplicate targets/stations are merged)
 * Creating OI tables from scratch
     * `new_target_hdu` (create an `OI_TARGET` extension)
     * `new_target_hdu_from_simbad`
@@ -90,14 +90,17 @@ An `OIFITS2` object (OIFITS standard version 2, < `_OIFITS` < `astropy.io.fits.H
 * `_OIFITS` (`OIFITS1` and `OIFITS2`)
     * manipulation
         * `bin_spectral_channels` (downgrade spectral resolution)
-        * `visualize` (quick plot)
+        * `trim` (keep only wavelengths, targets, instruments, ... of interest)
         * `to_table` (transform to a table with one scalar observable per line)
         * `to_version` (transform between versions of the OIFITS standard)
+    * visualisation
+        * `visualize` (quick plot)
     * data updating
         * `verify` (check standard compliance and mend if possible)
         * `update_primary_header` (update primary header using the info in other tables)
         * `update_uv` (compute spatial frequencies using array data)
     * contents listing 
+        * `get_OITableHDUs`
         * `get_targetHDU`
         * `get_arrayHDUs` & `get_arrayHDU`
         * `get_wavelengthHDUs` & `get_wavelengthHDU`
@@ -135,13 +138,12 @@ An `OIFITS2` object (OIFITS standard version 2, < `_OIFITS` < `astropy.io.fits.H
         * `get_tel_name`
         * `get_tel_config`
     * polarisation information
-        * `get_jones_matrix` (only `_DataHDU2`)
-
+        * (`_DataHDU2` only) `get_jones_matrix`
 
 ### Direct data access
 
-Each column of the OI FITS standard can be directly accessed via, for instance,
-`h.UCOORD` or `h.VIS2DATA`.
+Each column of the OI FITS standard can be directly accessed via its standard
+name, for instance, `h.UCOORD` or `h.VIS2DATA` are synonyms to `h.data['UCOORD']` and `h.data['VIS2DATA']`, respectively.
 
 ## Related projects
 
@@ -189,4 +191,14 @@ New features:
 
 ### 0.4.4
 * Documentation
-* fixed numerous bugs in `get_jones_matrix` and `InspolHDU1`
+* Fixed numerous bugs in `get_jones_matrix` and `InspolHDU1`
+
+### 0.4.5
+
+Bug fixes
+* Fixed error in creation of FluxHDU using `from_data`
+* Fixed error in creation of OI tables with non-standard columns using `from_data`
+
+New features
+* New function `trim()` to keep only wavelengths, instruments, instrumental setups, arrays, targets of interest
+

@@ -129,6 +129,26 @@ column with its name prefixed with NS_
 
         return super().from_data(fits_keywords=fits_keywords, **columns)
 
+    def _trim_helper(self, *, wave_filter=lambda w: True, 
+            target_filter=None, insname_filter=None, keep_ns_columns=False):
+
+        keep = _np.vectorize(wave_filter)(self.EFF_WAVE)
+
+        columns = {}
+        standard_colnames = self._get_oi_colnames()
+
+        for column in self.columns:
+
+            colname = column.name
+            if not keep_ns_columns and colname not in standard_colnames:
+                continue
+            columns[colname.lower()] = self.data[colname][keep]
+
+        whdu = self._from_data(fits_keywords=self.header, **columns)
+        
+        return whdu
+        
+
     def _bin_helper(self, R):
 
         min, max = _np.minimum, _np.maximum

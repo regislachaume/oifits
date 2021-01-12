@@ -1,5 +1,5 @@
 """
-A package to read, write and manipulate files containing the Optical 
+A package to read, write, manipulate, and create files containing the Optical 
 Interferometry Data Exchange standard format defined by
 * OIFITS 2: Gilles Duvert, John Young & Christian Hummel (2017),
   Astronomy & Astrophysics, 597, A8, doi:10.1051/0004-6361/201526405, 
@@ -17,7 +17,7 @@ Typical use
 
 from .oifits import *
 
-__version__ = "0.4.4"
+__version__ = "0.4.5"
 __author__ = "Régis Lachaume"
 __email__ = "regis.lachaume@gmail.com"
-__date__ = "2020-11-23"
+__date__ = "2020-01-12"

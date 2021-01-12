@@ -9,6 +9,8 @@ from .inspol import _MayHaveInspolHDU
 from .. import utils as _u
 from .. import coo as _coo
 
+from warnings import warn as _warn
+from astropy.logger import AstropyWarning as _AstropyWarning
 from astropy.io import fits as _fits
 from astropy import table as _table
 from astropy import units as _units
@@ -340,19 +342,21 @@ Returns:
         return self._merge_helper(*others)
 
     @classmethod
-    def from_data(cls, *, insname, arrname=None, corrname=None,
-        date=None, mjd, int_time=0., flag=False, fits_keywords={}, **columns):
+    def from_data(cls, *, insname, mjd, arrname=None, corrname=None,
+        date=None, int_time=0., flag=False, fits_keywords={}, **columns):
 
         fits_keywords = dict(arrname=arrname, insname=insname, 
                              corrname=corrname, **fits_keywords)
         columns = dict(mjd=mjd, int_time=int_time, flag=flag, **columns)
 
         if date is None:
+            mjd = _np.array(mjd)
+            int_time = _np.array(int_time)
             mjdobs = min(mjd - int_time / 86400. / 2)
             date = _Time(mjdobs, format='mjd').isot
-    
+   
         fits_keywords = {'DATE-OBS': date, **fits_keywords}
- 
+
         return super().from_data(fits_keywords=fits_keywords, **columns)
 
     def update_uv(self):
@@ -545,6 +549,38 @@ NotImplemented Error
 
         return [new_data, new_error]
 
+    def _trim_helper(self, *, target_filter=lambda targ: True, 
+            wave_filter=lambda wave: True, insname_filter=None,
+            keep_ns_columns=False):
+
+        wkeep = _np.vectorize(wave_filter)(self.get_wave(shape='none'))
+        tkeep = _np.vectorize(target_filter)(self.get_target())
+
+        columns = {}
+        spectral_colnames = self._get_spec_colnames()
+        standard_colnames = self._get_oi_colnames()
+        for column in self.columns:
+            colname = column.name
+            if not keep_ns_columns and colname not in standard_colnames:
+                continue
+            data = self.data[colname]
+            if colname == 'VISREFMAP':
+                nref = data.sum(axis=2)
+                data = data[:,wkeep,:][...,wkeep]
+                nref = nref[:,wkeep]
+                if nref.sum() != data.sum():
+                    _warn(_AstropyWarning('trimming leaves out reference '
+                           'wavelengths in differential visibility'))
+            elif colname in spectral_colnames:
+                if data.ndim == 1:
+                    data = data[:,None]
+                data = data[:,wkeep]
+            columns[colname] = data[tkeep]
+
+        dhdu = self._from_data(fits_keywords=self.header, **columns)
+
+        return dhdu
+
     def _bin_helper(self, weights):
 
         if weights is None:
@@ -589,6 +625,7 @@ class _DataHDU11(
          _OITableHDU1,
       ):
 
+    @classmethod
     def from_data(cls, *, fits_keywords={}, mjd, time=None, **columns):
 
         if time is None:
@@ -611,7 +648,8 @@ class _DataHDU2(
 
         errors = super()._verify(option=option)
 
-        obs_names =  self.get_observable_names()
+        colnames = self.columns.names
+        obs_names = [n for n in self.get_observable_names() if n in colnames]
         index = _np.ma.hstack([self.get_corrindx(n, flatten=True) 
                                                 for n in obs_names])
         index = index[~index.mask]

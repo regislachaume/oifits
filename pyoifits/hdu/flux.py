@@ -29,19 +29,20 @@ class _FluxHDU(
     ]
     
     _COLUMNS = [
-        ('FLUXDATA',          True,  '>f8', (_NW,), None, 'any', None,
+        ('FLUXDATA',          True,  'D',  (_NW,), None, 'any', None,
             'Flux'),
-        ('FLUXERR',           True,  '>f8', (_NW,), None, 'any', None,
+        ('FLUXERR',           True,  'D',  (_NW,), None, 'any', None,
             'Flux uncertainty'),
-        ('STA_INDEX',         False, '>i2', (),     None, None, None,
+        ('STA_INDEX',         False, '1I', (),     None, None,  None,
             'Station index in matching OI_ARRAY table'),
-        ('CORRINDX_FLUXDATA', False, '>i4', (),     None, None, None,
+        ('CORRINDX_FLUXDATA', False, '1J', (),     None, None,  None,
             'Index of 1st flux in matching OI_CORR matrix'),
     ]
     
     
     @classmethod
-    def from_data(cls, *, arrname, fluxdata, calibrated=False,
+    def from_data(cls, *, insname, mjd, fluxdata, target_id, 
+            calibrated=False,
             fov=0., fovtype='FWHM', 
             fits_keywords={}, **columns):
         """
@@ -93,18 +94,15 @@ column with its name prefixed with NS_
 
         """
 
-        shape = _np.shape(fluxdata)
-        _u.store_default(columns, 'fluxerr', 0., shape)        
-
         if calibrated:
             fits_keywords = dict(calstat='C', fov=fov, fovtype=fovtype,
                                  **fits_keywords) 
         else:
             fits_keywords = dict(calstat='U', **fits_keywords)
             
-        columns = dict(fluxdata=fluxdata, **columns)
+        columns = dict(fluxdata=fluxdata, target_id=target_id, **columns)
 
-        return super().from_data(arrname=arrname, 
+        return super().from_data(insname=insname, mjd=mjd,
                     fits_keywords=fits_keywords, **columns)
     
     def get_obs_type(self, name, shape='data', flatten=False):

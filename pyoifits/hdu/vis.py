@@ -23,7 +23,9 @@ visibility amplitudes, phases, as well as correlated fluxes.
     ]
     
     @classmethod
-    def from_data(cls, *, visamp, visphi, fits_keywords={}, **columns):
+    def from_data(cls, *, insname, mjd, visamp, visphi, target_id, sta_index,
+        fits_keywords={}, amptyp='absolute', phityp='relative',
+        **columns):
         """
 
 Build an OI_VIS table from data.  In the following NWAVE indicates the
@@ -119,14 +121,18 @@ Any additional keyword argument will be appended as a non-standard FITS
 column with its name prefixed with NS_ 
 
         """
-        columns = dict(visamp=visamp, visphi=visphi,  **columns)
+        fits_keywords = dict(amptyp=amptyp, phityp=phityp,
+                    **fits_keywords)
+        columns = dict(visamp=visamp, visphi=visphi, sta_index=sta_index,
+                    target_id=target_id, **columns)
 
-        shape = self._get_columns_shape(**columns)
-        for name in ['visamp', 'visphi', 'rvis', 'ivis']:
-            if name in columns:
-                _u.store_default(columns, f"{name}err", 0., shape)
+        if 'amporder' in columns:
+            fits_keywords['amporder'] = columns.pop('amporder')
+        if 'phiorder' in columns:
+            fits_keywords['phiorder'] = columns.pop('phiorder')
 
-        return super().from_data(fits_keywords=fits_keywords, **columns)
+        return super().from_data(insname=insname, mjd=mjd,
+                    fits_keywords=fits_keywords, **columns)
 
 class VisHDU1(
         _VisHDU,
@@ -206,17 +212,6 @@ Second revision of the OI_VIS binary table, OIFITS v. 2.
             typ = 'correlated flux'
         return self._resize_data(typ, shape, flatten)
     
-    @classmethod
-    def from_data(cls, *, visamp, visphi,  
-
-        amptyp=None, phityp=None, amporder=None, phiorder=None, 
-        fits_keywords={}, **columns):
-
-        fits_keywords = dict(amptyp=amptyp, phityp=phityp, amporder=amporder,
-            phiorder=phiorder, **fits_keywords)
-        return super().from_data(cls, visamp=visamp, visphi=visphi, 
-                        fits_keywords=fits_keywords, **columns)
-
     def _verify(self, option='warn'):
 
         errors = super()._verify(option=option)

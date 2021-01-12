@@ -64,7 +64,35 @@ class _MustHaveInspolHDU(
 class _InspolHDU(
         _MustHaveInspolHDU,
       ):
+    
     _EXTNAME = 'OI_INSPOL'
+    
+    # exactly similar to _DataHDU.  Rethink class hierarchy?
+    def _trim_helper(self, target_filer=None,    
+        wave_filter=lambda wave: True, insname_filter=lambda ins: True,
+        keep_ns_columns=False):
+
+        insname = self.get_insname()
+        whdu = self.get_wavelength_HDU(insname=insname[0])
+        wkeep = _np.vectorize(wave_filter)(whdu.get_wave())
+        tkeep = _np.vectorize(target_filter)(self.get_target())
+        ikeep = _np.vectorize(insname_filter)(insname)
+
+        columns = {}
+        spectral_colnames = self._get_spec_colnames()
+        standard_colnames = self._get_oi_colnames()
+        for column in self.columns:
+            colname = column.name
+            if not keep_ns_columns and colname not in standard_colnames:
+                continue
+            data = self.data[colname]
+            if colname in spectral_colnames:
+                data = data[:,wkeep]
+            columns[colname] = data[tkeep & ikeep]
+
+        phdu = self._from_data(fits_keywords=self.header, **columns)
+
+        return phdu
     
 class InspolHDU1(
         _InspolHDU, 

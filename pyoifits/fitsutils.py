@@ -90,8 +90,8 @@ null (int):
     # Determine TFORM keyword 
     if format is None:
         dtype = array.dtype.char
-        format = 'A' if dtype in 'SU' else column_dtype(dtype) 
-    
+        format = 'A' if dtype in 'SU' else column_dtype[dtype] 
+   
     if len(format) == 1:
         len_ = size
         if format[-1] == 'A':
@@ -103,18 +103,15 @@ null (int):
         if format[-1] == 'A':
             len_ *= int(format[:-1]) // size
         if len_ != int(format[:-1]):
-            print(array)
             shape = array.shape[1:]
             txt = f"Shape {shape} does not match format {format} for {name}"
             raise RuntimeError(txt)
 
-    # Determine TDIM keyword. 
-    tdim = None
-    if format[-1] == 'A' and len(shape) > 1:
-        tdim = (len_, *shape[1:])
-    elif len(shape) > 2:
-        tdim = shape[1:]
-
+    if dim is None:
+        candidate_dim = array.shape[1:]
+        if 1 in candidate_dim:
+            dim = candidate_dim
+    # print(name, format, dim, array.shape, array)
     col = fits.Column(array=array, format=format, name=name, 
             unit=unit, dim=dim, null=null)
 

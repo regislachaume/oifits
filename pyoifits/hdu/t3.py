@@ -1,11 +1,11 @@
-
-from .data import _DataHDU11, _DataHDU22
-from .table import _OITableHDU
+from .data import _DataHDU, _DataHDU11, _DataHDU22
 from .wavelength import _NW
+
+import numpy as _np
 
 from .. import utils as _u
 
-class _T3HDU(_OITableHDU):
+class _T3HDU(_DataHDU):
     """
 OI_T3 binary table extension containing closure phases and triple 
 product amplitudes.
@@ -81,7 +81,7 @@ Precision
         self.V2COORD = v2
         
     @classmethod
-    def from_data(cls, *, u1coord, v1coord, u2coord, v2coord,
+    def from_data(cls, *, insname, mjd, target_id, sta_index, 
             t3phi, fits_keywords={}, **columns):
         """
 
@@ -118,8 +118,6 @@ sta_index (int, NOBS × 3)
     in version 1)
 u1coord, v1coord, u2coord, v2coord (float, NOBS)
     (u, v) coordinates of the first two baselines.
-
-
 t3phi (float, NOBS × NWAVE)
     closure phase
 t3phierr (float, NOBS × NWAVE)
@@ -153,10 +151,19 @@ Any additional keyword argument will be appended as a non-standard FITS
 column with its name prefixed with NS_ 
 
         """
-        _u.store_default(columns, 't3amp', default=_np.nan)
+        t3amp = _np.empty_like(t3phi)
+        t3amp[...] = _np.nan
+        _u.store_default(columns, 't3amp', default=t3amp)
+        _u.store_default(columns, 'u1coord', default=0.)
+        _u.store_default(columns, 'u2coord', default=0.)
+        _u.store_default(columns, 'v1coord', default=0.)
+        _u.store_default(columns, 'v2coord', default=0.)
 
-        return super().from_data(u1coord, v1coord, u2coord, v2coord, t3phi, 
-            fits_keywords=fits_keywords, **columns)
+        columns = dict(t3phi=t3phi, target_id=target_id, 
+                    sta_index=sta_index, **columns)
+
+        return super().from_data(insname=insname, mjd=mjd,
+                fits_keywords=fits_keywords, **columns)
 
 class T3HDU1(
         _T3HDU,
@@ -186,10 +193,7 @@ Second revision of the OI_T3 binary table, OIFITS v. 2
             'index of 1st phase in matching OI_CORR matrix'),
     ]
 
-    @classmethod
-    def from_data(cls, *, arrname, fits_keywords={}, **columns):
+    pass
 
-        return super().from_columns(arrname=arrname,
-                        fits_keywords=fits_keywords, **columns)
 
 new_t3_hdu = _T3HDU.from_data

@@ -625,6 +625,116 @@ and header are copied
     def __add__(self, other):
         return merge(self, other)
 
+    def trim(self, *, keep_ns_columns=False, 
+            targets=None, target_filter=lambda targ: True,
+            insnames=None, insname_filter=lambda ins: True,
+            arrnames=None, arrname_filter=lambda arr: True,
+            wavemin=0, wavemax=1e10, wave_filter=lambda wave: True):
+        """
+
+Trim unwanted wavelengths, instruments, instrumental setups, arrays, targets,
+and non-standard columns from an OIFITS file
+
+Arguments:
+----------
+
+keep_ns_columns (bool, default: False)
+    Whether non-standard columns should be kept.  In the case they are
+    kept, no trimming of wavelengths occurs if these columns have a spectral
+    dimension.
+
+wavemin (float, default: 0):
+    Minimum wavelength to be kept
+
+wavemax (float, default: 1e10):
+    Maximum wavelength to be kept
+
+wave_filter (func):
+    A boolean function indicating whether a wavelength should be kept.  It
+    may be combined with wavemin & wavemax.
+
+targets (list of str):
+    A list of targets to keep
+
+target_filter (func):
+    A boolean function indicating whether a target should be kept. It may be
+    combined with targets.
+
+arrnames (list of str):
+    A list of array names to keep
+
+arrname_filter (func):
+    A boolean function indicating whether an array should be kept. It may be
+    combined with arrnames
+    
+insnames (list of str):
+    A list of instrument configurations to keep. 
+
+insname_filter (func):
+    A boolean function indicating whether an instrumental configuration 
+    should be kept.  It may be combined with insnames.
+
+Returns:
+--------
+
+    A trimmed OIFITS1 or OIFITS2
+
+        """
+        if any(isinstance(h, (_CorrHDU)) for h in self):
+           msg = 'Trimming OIFITS with correlation info'
+           raise NotImplementedError(msg)
+        
+        # Merge filter with other types of constraints
+
+        def wfilter(wave):
+            return (wave <= wavemax) & (wave >= wavemin) & wave_filter(wave)
+        
+        def ifilter(ins):
+            keep = insname_filter(ins)
+            if insnames is not None:
+                keep &= ins in insnames
+            return keep
+        
+        def afilter(arr):
+            keep = arrname_filter(arr)
+            if arrnames is not None:
+                keep &= arr in arrnames
+            return keep 
+       
+        def tfilter(targ):
+            keep = target_filter(targ)
+            if targets is not None:
+                keep &= targ in targets
+            return keep
+
+        # Remove unwanted arrays
+
+        trimmed = self # all HDUs are copied in later stage
+
+        trimmed = [h for h in trimmed 
+                if not (s := h.header.get('ARRNAME', '')) or afilter(s)]
+
+        # Remove unwanted instrument configurations
+
+        trimmed = [h for h in trimmed
+                if not (s := h.header.get('INSNAME', '')) or ifilter(s)]
+
+        # Remove unwanted wavelengths, targets, and insnames from 
+        # lines and columns.   
+ 
+        trimmed = [h._trim_helper(target_filter=tfilter, wave_filter=wfilter,
+                insname_filter=ifilter, keep_ns_columns=keep_ns_columns)
+            if isinstance(h, _OITableHDU) else h.copy() for h in trimmed]
+
+
+        # Remove empty HDUs (either zero line or zero dimension in
+        # wavelength-dependent data)
+
+        trimmed = [h for h in trimmed 
+            if not isinstance(h, _OITableHDU) or h.ndata()]
+        
+        return type(self)(trimmed)
+
     def bin_spectral_channels(self, R):
         """
 
