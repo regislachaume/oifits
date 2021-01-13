@@ -22,14 +22,13 @@ Read and merge to OIFITS datasets and tranform to a standard [`astropy`](https:/
 
 import pyoifits as oifits
 
-data1 = oifits.read('file1.fits')
-data2 = oifits.read('file2.fits')
+data = oifits.openlist(['file1.fits', 'file2.fits'])
 
-data = data1 + data2
-
-tab, C = data.to_table(correlations='numpy')
-err = tab['error']
-covar = C * np.outer(err, err)
+tab, corr = data.to_table(correlations='numpy')
+obs = tab['observable']
+x = tab['value']
+dx = tab['error']
+cov = corr * np.outer(dx, dx)
 ```
 
 There is also a short [demo](https://github.com/loqueelvientoajuarez/oifits/blob/master/demo/intro.ipynb "Jupyter notebook demo").
@@ -51,7 +50,7 @@ An `OIFITS1` object (OIFITS standard version 1, < `_OIFITS` < `astropy.io.fits.H
         * `VisHDU1` (`OI_VIS` extension)
         * `Vis2HDU1` (`OI_VIS2` extension)
         * `T3HDU1` (`OI_T3` extension)
-3. any other FITS extension
+3. any other FITS extension 
 
 An `OIFITS2` object (OIFITS standard version 2, < `_OIFITS` < `astropy.io.fits.HDUList`) contains
 1. one `PrimaryHDU2` object (< `astropy.io.fits.PrimaryHDU`)
@@ -157,7 +156,7 @@ name, for instance, `h.UCOORD` or `h.VIS2DATA` are synonyms to `h.data['UCOORD']
 
 New features:
 * Method `to_table()` optionally returns a correlation matrix
-
+GG
 ### 0.4.1
 
 Bug fixes:
@@ -196,8 +195,9 @@ New features:
 ### 0.4.5
 
 Bug fixes
-* Fixed error in creation of FluxHDU using `from_data`
+* Fixed error in creation of FluxHDU and T3HDU using `from_data`
 * Fixed error in creation of OI tables with non-standard columns using `from_data`
+* Typos in documentation
 
 New features
 * New function `trim()` to keep only wavelengths, instruments, instrumental setups, arrays, targets of interest
