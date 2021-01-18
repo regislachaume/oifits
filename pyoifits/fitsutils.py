@@ -107,11 +107,10 @@ null (int):
             txt = f"Shape {shape} does not match format {format} for {name}"
             raise RuntimeError(txt)
 
-    if dim is None:
-        candidate_dim = array.shape[1:]
-        if 1 in candidate_dim:
-            dim = candidate_dim
-    # print(name, format, dim, array.shape, array)
+    shape = array.shape[1:]
+    if len(shape) and dim is None:
+        dim = f"({','.join(str(x) for x in shape[::-1])})"
+
     col = fits.Column(array=array, format=format, name=name, 
             unit=unit, dim=dim, null=null)
 
