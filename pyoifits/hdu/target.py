@@ -15,6 +15,11 @@ _deg = _np.deg2rad(1)
 _arcsec = _deg / 3600
 _milliarcsec = _arcsec / 1000
 
+def _decode(s):
+    if isinstance(s, bytes):
+        return s.decode()
+    return s
+
 class _MustHaveTargetHDU(_OITableHDU):
 
     def _get_target_field(self, name, shape='none', flatten=False,
@@ -552,11 +557,11 @@ column with its name prefixed with NS_
 
         # target ID must be ascii, if not, pick simbad
         main_id = tab['MAIN_ID']
-        target = [s if ascii(s)[1:-1] == s else m.decode() 
+        target = [s if ascii(s)[1:-1] == s else _decode(m)
                             for s, m in zip(simbad_id, main_id)]
 
         def tolist(x, deflt=_np.nan):
-            x = [e.decode() if isinstance(e, bytes) else e for e in x.tolist()]
+            x = [_decode(e) for e in x.tolist()]
             x = _np.array([deflt if e in ['', None] else e for e in x])
             return x
 

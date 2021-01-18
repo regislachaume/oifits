@@ -202,3 +202,9 @@ Bug fixes
 New features
 * New function `trim()` to keep only wavelengths, instruments, instrumental setups, arrays, targets of interest
 
+### 0.4.6.
+
+Bug fixes
+* Fixed TDIM=1 keyword error when trimming to N×1 data
+* Fixed an issue with astroquery returning str instead of bytes
+
