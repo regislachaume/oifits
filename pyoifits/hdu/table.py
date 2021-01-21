@@ -245,11 +245,12 @@ Syntax: tab.rename_columns(oldname1=newname1, ...)
 
         OI_COLUMNS = self._get_oi_columns(required=False)
 
+        loc = f"{type(self).__name__} object"
+
         # Check all required columns are present
         for c in self._get_oi_colnames(required=True):
             if c not in self.data.names:
-                name = self.__class__.__name__
-                err_text = f"Missing column '{c}' in {name} object"
+                err_text = f"Missing column '{c}' in {loc}"
                 err = self.run_option(option, err_text, fixable=False)
                 errors.append(err)
            
@@ -264,7 +265,8 @@ Syntax: tab.rename_columns(oldname1=newname1, ...)
             if len(fmt) == 1:
                 real = real[-1]
             if fmt != real:
-                err_txt = f"Column {name}: type must be {fmt} but is {real}."
+                err_txt = (f"Column {name}: type must be {fmt} but is {real} "
+                           f"in {loc}.")
                 fix_txt = "Will try to fix."
                 def fix(): pass
                 err = self.run_option(option, err_txt, fix_txt, fix)
@@ -278,7 +280,8 @@ Syntax: tab.rename_columns(oldname1=newname1, ...)
             spec = unit
             if (spec is None and real not in [None, ''] or
                 spec not in [None, 'any'] and spec != real): 
-                err_txt = f"Column {name}: unit must be {spec} but is {real}."
+                err_txt = (f"Column {name}: unit must be {spec} but is {real} "
+                           f"in {loc}.")
                 fix_txt = "Fixed." 
                 def fix(col=self.columns[name]): col.unit = spec
                 err = self.run_option(option, err_txt, fix_txt, fix)
@@ -290,7 +293,8 @@ Syntax: tab.rename_columns(oldname1=newname1, ...)
                 nwave = self.get_nwaves()
                 shape = tuple(nwave if d == _u.NW else d for d in shape)
             if shape != dshape and shape != (1,) and dshape != (): 
-                err_txt = f"Column {name}: shape is {dshape}, should be {shape}"
+                err_txt = (f"Column {name}: shape is {dshape}, should be "
+                           f"{shape} in {loc}.")
                 err = self.run_option(option, err_txt, fixable=False) 
                 errors.append(err)
             
@@ -310,7 +314,7 @@ Syntax: tab.rename_columns(oldname1=newname1, ...)
                     if not fixable:
                         fix = None
                     val1 = values[invalid][0]
-                    err_txt = f"Column '{name}' has incorrect values. "
+                    err_txt = f"Column '{name}' has incorrect values in {loc}. "
                     err_txt += f"First encountered  '{val1}'."
                     fix_txt = f"Replaced by default value"
                     err = self.run_option(option, err_txt, fix_txt, fix, fixable)
@@ -322,7 +326,8 @@ Syntax: tab.rename_columns(oldname1=newname1, ...)
                     if name not in oi_colnames and name[0:3] != 'NS_'}
         if subst:
             nonstd = ', '.join([f"'{n}'" for n in subst.keys()])
-            err_text = f"Column name(s) should start with prefix_ :'{nonstd}'."
+            err_text = f"Non standard-column name(s) in {loc}"
+            err_text += f", should start with PREFIX_."
             fix_text = "NS_ has been prefixed to column name(s)"
             def fix(h=self): h.rename_columns(**subst)
             err = self.run_option(option, err_text, fix_text, fix)

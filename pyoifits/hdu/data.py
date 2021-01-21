@@ -648,6 +648,9 @@ class _DataHDU2(
 
         errors = super()._verify(option=option)
 
+
+        # Basic CORRINDX checks
+
         colnames = self.columns.names
         obs_names = [n for n in self.get_observable_names() if n in colnames]
         index = _np.ma.hstack([self.get_corrindx(n, flatten=True) 
@@ -660,7 +663,22 @@ class _DataHDU2(
         if _np.any(index <= 0):
             err_txt = 'negative or null CORRINDX'
             self.run_option(option, err_txt, fixable=False)
-    
+
+        # Errors can't be strictly negative
+   
+        for name in self.get_error_names():
+            if name not in self.columns.names:
+                continue
+            errval = self.data[name]
+            flag = self.data['FLAG']
+            invalid = (errval < 0) & ~flag
+            if _np.any(invalid):
+                err_txt = f'{name} cannot be strictly negative.'
+                fix_txt = 'replacing by NaN'
+                def fix(h=self): h.data[name][invalid] = _np.nan
+                self.run_option(option, err_txt, fix_txt, fix)
+                self.data[name][invalid] = _np.nan
+ 
         return errors
 
     def get_corrindx(self, obsname, shape='none', flatten=False):

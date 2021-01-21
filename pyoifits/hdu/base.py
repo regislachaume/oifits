@@ -38,7 +38,14 @@ and header are copied.
 
     def get_container(self):
         return getattr(self, '_container', None)
-    
+
+
+    def verify(self, option='warn'):
+
+        with warnings.catch_warnings():
+            warnings.simplefilter('always')
+            super().verify(option=option)
+
     def _verify(self, option='warn'):
 
         errors = super()._verify(option)

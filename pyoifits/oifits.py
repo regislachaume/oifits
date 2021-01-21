@@ -8,6 +8,12 @@ import re as _re
 
 from matplotlib import pylab as _plt
 
+# TEMP
+import warnings
+from astropy.io.fits.verify import VerifyWarning
+import random
+# /TEMP
+
 from .hdu import *
 from . import utils as _u
 from . import fitsutils as _fu
@@ -323,6 +329,12 @@ target_name_match (bool, default: False)
     def get_version(self):
         return self._OI_VER
 
+    def verify(self, option='warn'):
+
+        with warnings.catch_warnings():
+            warnings.simplefilter('always')
+            super().verify(option=option)
+
     def _verify(self, option='warn'):
 
         errors = super()._verify(option) 
@@ -336,7 +348,7 @@ target_name_match (bool, default: False)
             extrevn = hdu.header.get('OI_REVN', 0)
             
             if extname[0:3] == 'OI_' and not isinstance(hdu, _OITableHDU):
-                err_text = f"Invalid OIFITS extention: {extname}"
+                err_text = f"Invalid OIFITS extention: {extname} in {clsname} ({hex(id(self))})"
                 fix_text = "Replaced underscore by dash"
                 def fix(hdu=hdu):
                     hdu.header['EXTNAME'] = 'OI-' + extname[3:]
@@ -345,14 +357,10 @@ target_name_match (bool, default: False)
                 errors.append(err)
               
             if hdu._OI_VER != self._OI_VER: 
-                err_text = f"Extension {extname} rev. {extrevn} in {clsname}"
+                err_text = f"Extension {extname} rev. {extrevn} in {clsname} ({hex(id(self))}"
                 err = self.run_option(option, err_text=err_text, fixable=False) 
                 errors.append(err)
        
-        # silently fix EXTVER 
-        self.update_extver()
-        self.update_primary_header()
-
         return errors
 
     def update_uv(self):

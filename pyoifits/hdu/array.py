@@ -120,16 +120,19 @@ NotImplementedError
         # only one of them is present, there's a problem.
         sta_index = getattr(self, 'STA_INDEX', None)
         arrname = self.header.get('ARRNAME', None) 
+
+        loc = f"{type(self).__name__} object"
         
         if not arrname:
             if sta_index is not None and not isinstance(self, _ArrayHDU):
-                err_text = "STA_INDEX column present with no ARRNAME keyword"
+                err_text = "STA_INDEX column present with no ARRNAME keyword "
+                err_text += f"in {loc}."
                 err = self.run_option(option, err_text, fixable=False)
                 errors.appen(err)
             return errors
          
         if sta_index is None:
-            err_text = "ARRNAME is given but not STA_INDEX column"
+            err_text = "ARRNAME is given but not STA_INDEX column in {loc}"
             err = self.run_option(option, err_text, fixable=False)
             errors.append(err)
             return errors
@@ -187,7 +190,7 @@ class _ArrayHDU(_MustHaveArrayHDU,_Referenced):
                 'station index for cross-reference'),
         ('DIAMETER',  True, '1E', (),   _u.is_strictpos, None, "m",
                 'effective diameter of the aperture'),
-        ('STAXYZ',    True, '3E', (3,), None,            None, "m",
+        ('STAXYZ',    True, '3D', (3,), None,            None, "m",
                 'station coordinates relative to array centre'),
     ]
     

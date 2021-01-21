@@ -145,7 +145,6 @@ def is_pos(x):
 def is_strictpos(x):
     return is_num(x) and x > 0
 
-
 def is_int(i):
     return isinstance(i, (int, np.integer))
 

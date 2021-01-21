@@ -195,7 +195,7 @@ New features:
 ### 0.4.5
 
 Bug fixes
-* Fixed error in creation of FluxHDU and T3HDU using `from_data`
+* Fixed error in creation of `FluxHDU` and `T3HDU` using `from_data`
 * Fixed error in creation of OI tables with non-standard columns using `from_data`
 * Typos in documentation
 
@@ -205,6 +205,15 @@ New features
 ### 0.4.6.
 
 Bug fixes
-* Fixed TDIM=1 keyword error when trimming to N×1 data
-* Fixed an issue with astroquery returning str instead of bytes
+* Fixed `TDIM`=1 keyword error when `trim()` yields N×1 data
+* Fixed an issue with `astroquery` returning `str` instead of `bytes`
 
+### 0.4.7
+
+Bug fixes
+* Fixed float format for `STAXYZ` column in `ArrayHDU` extension
+* `verify()` can now fix strictly negative errors
+* duplicate fits warnings in `verify()` are now printed
+
+Testing
+* A quick test of `verify()` on a set of JMMC/aspro-generated OIFITS
