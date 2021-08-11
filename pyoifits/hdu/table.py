@@ -119,6 +119,7 @@ Losses may happen because
         if hasattr(self, '_container'):
             newobj._container = self._container
         newobj.fix_column_types()
+        newobj.verify('silentfix+ignore')
 
         return newobj
 

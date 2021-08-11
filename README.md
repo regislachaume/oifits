@@ -217,3 +217,9 @@ Bug fixes
 
 Testing
 * A quick test of `verify()` on a set of JMMC/aspro-generated OIFITS
+
+### 0.4.8
+
+Bug fixes
+* `to_version()` now runs `verify()` to produce valid OIFITS if possible
+* A quick test of `to_version()`

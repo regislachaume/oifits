@@ -2,6 +2,7 @@ from astropy.io.fits.hdu import base as _fitsbase
 from astropy.io import fits as _fits
 from .. import utils as _u
 import copy as _copy
+import warnings
 
 # All Valid HDUs for OIFITS will inherit a _CARDS structured array
 # describing the specific FITS keywords in the header

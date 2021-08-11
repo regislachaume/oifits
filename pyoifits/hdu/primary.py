@@ -38,7 +38,8 @@ class _PrimaryHDU(
         if cls == newcls:
             return self
         hdu = newcls(data=self.data, header=self.header)
-        hdu.header['CONTENT'] = f"oifits{n}"
+        hdu.header['CONTENT'] = f"OIFITS{n}"
+
         return hdu
     
     def __init__(self, data=None, header=_fits.Header(), keywords={}):
