@@ -4,7 +4,6 @@ from astropy.time import Time as _Time
 from numpy import ma as _ma
 import numpy as _np
 import scipy.sparse as _sparse
-import re as _re 
 
 from matplotlib import pylab as _plt
 
@@ -144,7 +143,7 @@ def _merge(*hdulists, _inplace=False):
     # * if some extensions are of the wrong version, convert them
     for i, hdu in enumerate(hdus):
         if isinstance(hdu, _ValidHDU):
-            hdus[i] = hdu.to_version(maxver)
+            hdus[i] = hdu._to_version(maxver)
     
     # * update the primary HDU header inferring some keywords from 
     #   contents
@@ -322,7 +321,7 @@ target_name_match (bool, default: False)
         if has_new_hdu:
             last_index = list.__len__(self) - 1 # len(x) would load all HDUs
             hdu = self[last_index]
-            if isinstance(hdu, _OITableHDU):
+            if isinstance(hdu, (_OITableHDU, _PrimaryHDU)):
                 hdu._container = self
         return has_new_hdu
 
@@ -814,8 +813,12 @@ n (int: 1 or 2)
         for newcls in type(self).__base__.__subclasses__():
             if newcls._OI_VER == n:
                 break
+        else:
+            raise TypeError(f'unknown OIFITS version: {n}')
 
-        hdulist = newcls([hdu.to_version(n) for hdu in self])
+        hdulist = newcls([hdu._to_version(n) for hdu in self])
+        hdulist.verify('silentfix+ignore')
+        hdulist.update_primary_header()
 
         return hdulist 
 
@@ -826,66 +829,7 @@ Update the primary header to match the information in OI table
 extensions
 
         """ 
-        header = self[0].header
-        datahdus = self.get_dataHDUs()
-        
-        # fix dates
-        mjdobs = min(h.MJD.min() for h in datahdus)
-        header['DATE-OBS'] = _Time(mjdobs, format='mjd').isot 
-        
-        # deal with keywords for atomic observations
-        targets = self.get_targetHDU().data
-        if len(targets) == 1:
-            wavehdus = self.get_wavelengthHDUs()
-            mjdend = max(h.MJD.max() for h in datahdus)
-            header['OBJECT'] = targets['TARGET'][0] 
-            header['RA'] = targets['RAEP0'][0]
-            header['DEC'] = targets['DECEP0'][0]
-            header['EQUINOX'] = targets['EQUINOX'][0]
-            header['MJD-OBS'] = mjdobs
-            header['MJD-END'] = mjdend
-            wavelmin = min(h.EFF_WAVE.min() for h in wavehdus)
-            header['WAVELMIN'] = float(f"{wavelmin:10.4g}")
-            wavelmax = max(h.EFF_WAVE.max() for h in wavehdus)
-            header['WAVELMAX'] = float(f"{wavelmax:10.4g}")
-        else:
-            for keyw in ['RA', 'DEC', 'UTC', 'LST', 'EQUINOX', 'RADECSYS', 
-                'TEXPTIME', 'MJD-OBS', 'MJD-END', 'BASE_MIN', 'BASE_MAX', 
-                'WAVELMIN', 'WAVELMAX', 'NUM_CHAN', 'VIS2ERR', 'VISPHERR', 
-                'T3PHIERR']:
-                if keyw in header:
-                    del header[keyw]
-
-        # Deal with all MULTI keywords
-        if len(targets) > 1:
-            header['OBJECT'] = 'MULTI'
-
-        arrnames = _np.unique([h.get_arrname() for h in datahdus])
-        if len(arrnames) == 1:
-            header['TELESCOP'] = arrnames[0]
-        else:
-            header['TELESCOP'] = 'MULTI'
-
-        insnames = _np.unique([h.get_insname() for h in datahdus])
-        if len(insnames) == 1:
-            header['INSMODE'] = insnames[0]
-        else:
-            header['INSMODE'] = 'MULTI'
-
-            # deduce instrument
-        ins = [_re.sub('([A-Za-z]+).*', '\\1', i).upper() for i in insnames]
-        ins = _np.unique(ins)
-        if len(ins) == 1:
-            ins = ins[0]
-        else:
-            ins = 'MULTI'
-        self[0].header['INSTRUME'] = ins
-
-        # missing ones
-        for keyw in ['PROG_ID', 'REFERENC', 'PROCSOFT', 'OBSTECH',
-                     'OBSERVER', 'TELESCOP']:
-            if keyw not in header:
-                header[keyw] = 'UNKNOWN'
+        self[0].update_header()
 
     def visualize(self, xvar, observable, /, *, 
             group_by=None, color_by=None, fig=None, **kwargs):
@@ -1075,6 +1019,42 @@ fig (matplotlib.figure.Figure)
 class OIFITS1(_OIFITS):
     """Top-level class of Optical Interferometry FITS format, version 1."""
     _OI_VER = 1
+
+    def insert_arrayHDU(self, ahdu, dataHDUs=None):
+        """
+
+Insert an OI_ARRAY extension to an OIFITS. 
+
+Arguments:
+----------
+
+ahdu (ArrayHDU1):
+    OI_ARRAY extension
+
+dataHDUs (list of HDUs):
+    HDUs that will be referring to ahdu.  They must not previously be
+    referring to an OI_ARRAY extension.
+
+        """
+        self.append(ahdu)
+        arrname = ahdu.get_arrname()
+
+        if dataHDUs is None:
+            dataHDUs = self.get_dataHDUs()
+
+        for dhdu in dataHDUs:
+
+            if not isinstance(dhdu, _DataHDU):
+                msg = 'dataHDUs must refer to OI_VIS, OI_VIS2, OI_T3 extensions'
+            elif dhdu not in self:
+                msg = 'dataHDUs must refer to extensions contained by OIFITS'
+            elif dhdu.header.get('ARRNAME', None):
+                msg = 'dataHDUs must not be already referring to an OI_ARRAY'
+            else:
+                dhdu.header['ARRNAME'] = arrname            
+                continue
+     
+            raise ValueError(msg)
 
     def to_table(self, /, *, remove_masked=False, **kwargs):
         """

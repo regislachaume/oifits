@@ -88,38 +88,13 @@ class _OITableHDU(
         return super().from_columns(columns, header=header, nrows=nrows,
             fill=False, character_as_bytes=character_as_bytes) 
 
-    def to_version(self, version):
-        """
+    def _to_version(self, version):
 
-Transform an OIFITS table between versions of the OIFITS standard.
-
-Arguments
----------
-
-version (int in 1..2)
-    Version
-
-Returns
--------
-
-Binary table of same EXTNAME conforming to OIFITS standard #version.
-
-Warning
--------
-
-Losses may happen because
-1) some column widths are shorter in v. 1 resulting in truncation.
-2) some OIFITS2 columns do not exist in OIFITS1 and will be 
-    prefixed with NS_ if transforming 2 -> 1.  The 1 -> 2 
-    transform will not restore the original column names.
-
-        """
-
-        newobj = super().to_version(version)
-        if hasattr(self, '_container'):
-            newobj._container = self._container
+        newobj = super()._to_version(version)
+        if container := self.get_container():
+            newobj._container = container
+        
         newobj.fix_column_types()
-        newobj.verify('silentfix+ignore')
 
         return newobj
 

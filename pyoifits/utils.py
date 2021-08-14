@@ -121,8 +121,10 @@ def is_one(s):
 def is_two(s):
     return s == 2
 
+STR_RE = '[0-9]{4}\-[0-9]{2}\-[0-9]{2}[ T][0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?'
+
 def is_date(s):
-    return is_nonemptystr(s)
+    return type(s) is str and re.match(STR_RE, s)
 
 def is_amptyp_rev2(s):
     return s in ['absolute', 'differential', 'correlated flux']

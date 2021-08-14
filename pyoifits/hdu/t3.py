@@ -151,8 +151,7 @@ Any additional keyword argument will be appended as a non-standard FITS
 column with its name prefixed with NS_ 
 
         """
-        t3amp = _np.empty_like(t3phi)
-        t3amp[...] = _np.nan
+        t3amp = _np.full_like(t3phi, _np.nan, dtype=float)
         _u.store_default(columns, 't3amp', default=t3amp)
         _u.store_default(columns, 'u1coord', default=0.)
         _u.store_default(columns, 'u2coord', default=0.)

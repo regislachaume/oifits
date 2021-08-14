@@ -510,9 +510,7 @@ NotImplemented Error
             lon = itrs.lon.value # target longitude in ITRS (opposite of hour
                                  # angle for an observer at Greenwich meridian)
             lat = itrs.lat.value # target declination in ITRS
-            #if i == 0:
-            #    print(f"{altaz.alt=} {altaz.az=}")
-            #    print(f"{lon=} {lat=}") 
+            
             wuv = _u.rotation3d(xyz, 'zy', [-lon, lat], degrees=True)
             uvw = _np.roll(wuv, -1, axis=-1)
 
@@ -648,7 +646,6 @@ class _DataHDU2(
 
         errors = super()._verify(option=option)
 
-
         # Basic CORRINDX checks
 
         colnames = self.columns.names
@@ -660,24 +657,48 @@ class _DataHDU2(
         if len(unique) < len(index):
             err_txt = 'repeated CORRINDX'
             self.run_option(option, err_txt, fixable=False)
+        
         if _np.any(index <= 0):
             err_txt = 'negative or null CORRINDX'
             self.run_option(option, err_txt, fixable=False)
 
-        # Errors can't be strictly negative
+        # Negative or NULL errors were informally used in v1 to mask 
+        # specific data. Using NULL (i.e. NaN per FITS standard) for both
+        # mean and error (OIFITS 2 standard).
    
-        for name in self.get_error_names():
-            if name not in self.columns.names:
+        obsnames = self.get_observable_names()
+        errnames = self.get_error_names()
+        
+        for obsname, errname in zip(obsnames, errnames):
+            
+            if errname not in self.columns.names:
                 continue
-            errval = self.data[name]
+
+            obsval = self.data[obsname]
+            errval = self.data[errname]
             flag = self.data['FLAG']
-            invalid = (errval < 0) & ~flag
+
+            invalid = errval < 0
             if _np.any(invalid):
-                err_txt = f'{name} cannot be strictly negative.'
-                fix_txt = 'replacing by NaN'
-                def fix(h=self): h.data[name][invalid] = _np.nan
-                self.run_option(option, err_txt, fix_txt, fix)
-                self.data[name][invalid] = _np.nan
+
+                def fix_neg(h=self): 
+                    h.data[errname][invalid] = _np.nan
+                    h.data[obsname][invalid] = _np.nan
+
+                err_txt = f'{errname} cannot be strictly negative.'
+                fix_txt = 'masking {name} and {errname} values'
+                self.run_option(option, err_txt, fix_txt, fix_neg)
+
+            invalid = _np.isnan(errval) & ~_np.isnan(obsval)
+            if _np.any(invalid):
+                
+                def fix_null(h=self): 
+                    h.data[errname][invalid] = _np.nan
+                    h.data[obsname][invalid] = _np.nan
+                
+                err_txt = f'{obsname} must be NULL if {errname} is'
+                fix_txt = 'masking {name} and {errname} values'
+                self.run_option(option, err_txt, fix_txt, fix_null)
  
         return errors
 

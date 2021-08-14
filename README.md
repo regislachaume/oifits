@@ -223,3 +223,11 @@ Testing
 Bug fixes
 * `to_version()` now runs `verify()` to produce valid OIFITS if possible
 * A quick test of `to_version()`
+
+### 0.4.9
+
+Bug fixes 
+* OIFITS version 2 verification 
+** `verify()` now replaces zero and negative `TARGET_ID` instead of throwing an error
+** `verify()` now masks values and errors (with NULL=NaN) when errors are strictly negative or NULL
+** primary header of single-target observations deduces more keywords from data HDUs (`BASE_MIN`, `VIS2ERR`, `NUM_CHAN`, etc.)

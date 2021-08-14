@@ -115,11 +115,8 @@ and header are copied.
 
         return (arr1, ins1, corr1, mjd1, id1) <  (arr2, ins2, corr2, mjd2, id2)
 
-    def to_version(self, version):
+    def _to_version(self, version):
        
-        if self._OI_VER == version:
-            return self
-
         newclass = self.get_class(version=version) 
         newobj =  newclass(data=self.data, header=self.header)
 

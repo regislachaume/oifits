@@ -98,7 +98,6 @@ astropy.coordinates.SkyCoord object
             equinox=equinox, obstime=epoch, frame=frame,
         )
 
-
         return coo
         
     def get_equinox(self, shape='none', flatten=False):
@@ -121,6 +120,7 @@ flatten (bool)
 
         """
         return self._get_target_field('EQUINOX', shape, flatten)
+    
     def get_ra(self, shape='none', flatten=False):
         """
 
@@ -141,6 +141,7 @@ flatten (bool)
 
         """
         return self._get_target_field('RAEP0', shape, flatten)
+    
     def get_dec(self, shape='none', flatten=False):
         """
 
@@ -161,6 +162,7 @@ flatten (bool)
 
         """
         return self._get_target_field('DECEP0', shape, flatten)
+    
     def get_parallax(self, shape='none', flatten=False):
         """
 
@@ -181,6 +183,7 @@ flatten (bool)
 
         """
         return self._get_target_field('PARALLAX', shape, flatten)
+    
     def get_pmra(self, shape='none', flatten=False):
         """
 
@@ -202,6 +205,7 @@ flatten (bool)
 
         """
         return self._get_target_field('PMRA', shape, flatten)
+    
     def get_pmdec(self, shape='none', flatten=False):
         """
 
@@ -222,6 +226,7 @@ flatten (bool)
 
         """
         return self._get_target_field('PMDEC', shape, flatten)
+    
     def get_rv(self, shape='none', flatten=False):
         """
 
@@ -242,6 +247,7 @@ flatten (bool)
 
         """
         return self._get_target_field('SYSVEL', shape, flatten)
+
     def get_spectype(self, shape='none', flatten=False):
         """
 
@@ -263,6 +269,7 @@ flatten (bool)
 
         """
         return self._get_target_field('SPECTYP', shape, flatten)
+    
     def get_category(self, shape='none', flatten=False):
         """
 
@@ -291,26 +298,39 @@ Get the corresponding OI_TARGET HDU.
 
         """
         return self._container.get_targetHDU()
+    
+    def _fix_negative_target_ids(self):
+
+        thdu = self.get_targetHDU()
+
+        all_ids = _np.unique(thdu.TARGET_ID)
+        invalid_ids = [id for id in all_ids if id <= 0]
+                    
+        if not invalid_ids:
+            return
+
+        new_ids = [id for id in range(1, len(all_ids) + 1) if id not in all_ids]
+        sub = {old: new for old, new in zip(invalid_ids, new_ids)}
+
+        thdu._substitute_ids(sub)
 
     def _verify(self, option='warn'):
 
         errors = super()._verify(option)
 
-        # Verify Target ID is correct (> 0) and referenced
+        # Verify TARGET_ID is contained in OI_TARGET HDU
 
-        val = _np.unique(self.TARGET_ID)
-        if not all(val >= 1):
-            err_text = "'TARGET_ID' should be ≥ 1"
+        thdu = self.get_targetHDU()
+        if thdu is self:
+            return errors
+
+        ids = _np.unique(self.TARGET_ID)
+        missing_ids = [v for v in ids if v not in thdu.TARGET_ID]
+        if missing_ids:
+            missing = ' '.join([str(id) for id in missing_ids])   
+            err_text = f"'TARGET_ID' not found in TargetHDU: {missing}"
             err = self.run_option(option, err_text, fixable=False)
             errors.append(err)
-
-        t = self.get_targetHDU()
-        if t is not self:
-            for v in val:
-                if v not in t.TARGET_ID:
-                    err_text = f"'TARGET_ID' not refered in TargetHDU: {v}"
-                    err = self.run_option(option, err_text, fixable=False)
-                    errors.append(err)
 
         return errors
 
@@ -351,7 +371,7 @@ class _TargetHDU(_MustHaveTargetHDU):
     ]
     
     ang_dist_max = 5e-9 # approx 1 mas
-    
+
     def _verify(self, option='warn'):
 
         errors = super()._verify(option)
@@ -365,6 +385,12 @@ class _TargetHDU(_MustHaveTargetHDU):
         errors.append(err)
 
         return errors
+
+    def _substitute_ids(self, sub):
+
+        for h in [self, *self.get_container().get_dataHDUs()]:
+            for old, new in sub.items():
+                h.TARGET_ID[h.TARGET_ID == old] = new
    
     def __add__(self, other):
 
@@ -409,8 +435,6 @@ class _TargetHDU(_MustHaveTargetHDU):
         thdu = self._from_data(fits_keywords=self.header, **columns)
 
         return thdu
-
-
 
     @classmethod
     def from_data(cls, *, target_id=None, target, ra, dec,  
@@ -542,6 +566,10 @@ column with its name prefixed with NS_
         """
 
         simbad = _Simbad()
+        
+        # at CDS is not working
+        simbad.SIMBAD_URL = 'https://simbad.harvard.edu/simbad/sim-script' 
+
         simbad.remove_votable_fields(*simbad.get_votable_fields()[1:])
         # OIFITS standard imposes equinox = epoch for the frame which
         # de facto excludes ICRS, we use FK5.
@@ -645,6 +673,22 @@ Second revision of the OI_TARGET binary table, OIFITS v. 2
         ('CATEGORY', False, '3A',  (), _u.is_category, 'SCI', None,
             'observation category: SCIence or CALibration'),
     ]
+
+    def _verify(self, option='warn'):
+
+        errors = super()._verify(option)
+
+        # Verify Target ID is correct (>= 1)
+
+        val = _np.unique(self.TARGET_ID)
+        if not all(val >= 1):
+            err_text = "'TARGET_ID' should be ≥ 1."
+            fix_text = "Substituting with values >= 1"
+            fix = lambda h=self: self._fix_negative_target_ids()
+            err = self.run_option(option, err_text, fix_text, fix=fix)
+            errors.append(err)
+
+        return errors
 
 new_target_hdu = _TargetHDU.from_data
 new_target_hdu_from_simbad = _TargetHDU.from_simbad
