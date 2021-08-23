@@ -3,7 +3,6 @@ Defines the FITS Header Data Units (HDUs) of the OIFITS format: primary
 header, binary tables containing interferometric data and instrumental 
 properties.
 """
-
 from .array import *
 from .wavelength import *
 from .target import *

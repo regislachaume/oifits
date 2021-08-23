@@ -1,21 +1,16 @@
-"""
-Implementation of the OI_WAVELENGTH binary table extension containing
-the instrumental spectral setup.
-"""
+import numpy as np
 
 from .table import _OITableHDU, _OITableHDU11, _OITableHDU22
 from .referenced import _Referenced
+from .. import utils as u
 
-from .. import utils as _u
-import numpy as _np
-from astropy.io import fits as _fits
-
+__all__ = ["WavelengthHDU1", "WavelengthHDU2", "new_wavelength_hdu"]
 
 _NW = 'NWAVE'
 
 class _MustHaveWavelengthHDU(_OITableHDU):
     
-    _CARDS = [('INSNAME', True, _u.is_nonempty, None, 
+    _CARDS = [('INSNAME', True, u.is_nonempty, None, 
         'instrumental setup name for cross-reference')]
 
     def get_insname(self, shape='none', flatten=False, copy=True):
@@ -31,7 +26,7 @@ class _MustHaveWavelengthHDU(_OITableHDU):
             return x
         
         if shape in ['data', 'table']:
-            x = _np.full(self.data_shape(), x)
+            x = np.full(self.data_shape(), x)
         if flatten:
             x = x.ravel()
 
@@ -49,7 +44,7 @@ class _MustHaveWavelengthHDU(_OITableHDU):
     def get_channel(self, shape='data', flatten=False):
 
         nwave = len(self.get_wavelengthHDU().data)
-        channel = _np.arange(1, nwave + 1)
+        channel = np.arange(1, nwave + 1)
         return self._resize_wave_data(channel, shape, flatten)
 
     def get_band(self, shape='data', flatten=False):
@@ -63,7 +58,7 @@ class _WavelengthHDU(_MustHaveWavelengthHDU,_Referenced):
     _EXTNAME = 'OI_WAVELENGTH'
     _REFERENCE_KEY = 'INSNAME'
     _COLUMNS = [
-        ('EFF_WAVE', True, '1E', (), _u.is_strictpos, None, "m",
+        ('EFF_WAVE', True, '1E', (), u.is_strictpos, None, "m",
                                 'effective wavelength')]
     
     def _diminfo(self):
@@ -132,7 +127,7 @@ column with its name prefixed with NS_
     def _trim_helper(self, *, wave_filter=lambda w: True, 
             target_filter=None, insname_filter=None, keep_ns_columns=False):
 
-        keep = _np.vectorize(wave_filter)(self.EFF_WAVE)
+        keep = np.vectorize(wave_filter)(self.EFF_WAVE)
 
         columns = {}
         standard_colnames = self._get_oi_colnames()
@@ -151,11 +146,13 @@ column with its name prefixed with NS_
 
     def _bin_helper(self, R):
 
-        min, max = _np.minimum, _np.maximum
+        from astropy.io.fits import Column
+
+        min, max = np.minimum, np.maximum
 
         # convert to double precision (rounding errors in weights...)
-        wave = _np.asarray(self.get_wave(shape='wavelength'), dtype=float)
-        band = _np.asarray(self.get_band(shape='wavelength'), dtype=float)
+        wave = np.asarray(self.get_wave(shape='wavelength'), dtype=float)
+        band = np.asarray(self.get_band(shape='wavelength'), dtype=float)
 
         winf, wsup = wave - band / 2,  wave + band / 2
         wmin, wmax = winf[0], wsup[-1]
@@ -164,15 +161,15 @@ column with its name prefixed with NS_
 
         if R0 > R and len(wave) > 1:
 
-            nwave = int(_np.ceil(len(wave) * R / R0))
+            nwave = int(np.ceil(len(wave) * R / R0))
 
             dw = (wmax - wmin) / nwave
             w1 = winf[0] + dw / 2
             w2 = wsup[-1] - dw / 2
-            new_wave = _np.linspace(w1, w2, nwave)
+            new_wave = np.linspace(w1, w2, nwave)
             new_winf = new_wave - dw / 2
             new_wsup = new_wave + dw / 2
-            new_band = _np.full((nwave,), dw)
+            new_band = np.full((nwave,), dw)
 
             weights = max(min(wsup, new_wsup[:,None])
                             - max(winf, new_winf[:,None]), 0) / band
@@ -181,8 +178,8 @@ column with its name prefixed with NS_
             oi_colnames = self._get_oi_colnames()
             fmt = f"{nwave}E"
 
-            wave_col = _fits.Column('EFF_WAVE', fmt, 'm', array=new_wave) 
-            band_col = _fits.Column('EFF_BAND', fmt, 'm', array=new_band) 
+            wave_col = Column('EFF_WAVE', fmt, 'm', array=new_wave) 
+            band_col = Column('EFF_BAND', fmt, 'm', array=new_band) 
             other_cols = [c for c in self.columns if c.name not in oi_colnames]
             cols = [wave_col, band_col, *other_cols]
 
@@ -195,8 +192,6 @@ column with its name prefixed with NS_
 
         return new, weights
 
-
-
 class WavelengthHDU1(
         _WavelengthHDU,
         _OITableHDU11,
@@ -206,7 +201,7 @@ class WavelengthHDU1(
 First revision of the OI_WAVELENGTH binary table, OIFITS v. 1
 
     """
-    _COLUMNS = [('EFF_BAND', True, '1E', (), _u.is_strictpos, None, "m",
+    _COLUMNS = [('EFF_BAND', True, '1E', (), u.is_strictpos, None, "m",
         'effective bandwidth')]
 
 
@@ -219,7 +214,7 @@ class WavelengthHDU2(
 First revision of the OI_WAVELENGTH binary table, OIFITS v. 1
 
     """
-    _COLUMNS = [('EFF_BAND', True, '1E', (), _u.is_pos, None, "m",
+    _COLUMNS = [('EFF_BAND', True, '1E', (), u.is_pos, None, "m",
         'effective bandwidth')]
   
 new_wavelength_hdu = _WavelengthHDU.from_data 

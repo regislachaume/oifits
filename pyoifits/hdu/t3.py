@@ -1,9 +1,10 @@
+import numpy as np
+
 from .data import _DataHDU, _DataHDU11, _DataHDU22
 from .wavelength import _NW
+from .. import utils as u
 
-import numpy as _np
-
-from .. import utils as _u
+__all__ = ["T3HDU1", "T3HDU2", "new_t3_hdu"]
 
 class _T3HDU(_DataHDU):
     """
@@ -13,23 +14,23 @@ product amplitudes.
     
     _EXTNAME = 'OI_T3'    
     _COLUMNS = [
-        ('STA_INDEX', True, '3I', (3,),   _u.is_strictpos, None, None,
+        ('STA_INDEX', True, '3I', (3,),   u.is_int, None, None,
             'station indices in matching OI_ARRAY table'),
-        ('U1COORD',   True, '1D', (),     None,            None, "m",
+        ('U1COORD',   True, '1D', (),     None,      None, "m",
             'u coordinate of first baseline'), 
-        ('V1COORD',   True, '1D', (),     None,            None, "m",
+        ('V1COORD',   True, '1D', (),     None,      None, "m",
             'v coordinate of first baseline'),
-        ('U2COORD',   True, '1D', (),     None,            None, "m",
+        ('U2COORD',   True, '1D', (),     None,      None, "m",
             'u coordinate of second baseline'), 
-        ('V2COORD',   True, '1D', (),     None,            None, "m",
+        ('V2COORD',   True, '1D', (),     None,      None, "m",
             'v coordinate of second baseline'),
-        ('T3AMP',     True, 'D',  (_NW,), None,            None, None,
+        ('T3AMP',     True, 'D',  (_NW,), None,      None, None,
             'Triple amplitude'), 
-        ('T3AMPERR',  True, 'D',  (_NW,), None,            None, None,
+        ('T3AMPERR',  True, 'D',  (_NW,), None,      None, None,
             'uncertainty on triple amplitude'),
-        ('T3PHI',     True, 'D',  (_NW,), None,            None, "deg",
+        ('T3PHI',     True, 'D',  (_NW,), None,      None, "deg",
             'closure phase'), 
-        ('T3PHIERR',  True, 'D',  (_NW,), None,            None, "deg",
+        ('T3PHIERR',  True, 'D',  (_NW,), None,      None, "deg",
             'uncertainty on closure phase'),
     ]
     
@@ -151,12 +152,12 @@ Any additional keyword argument will be appended as a non-standard FITS
 column with its name prefixed with NS_ 
 
         """
-        t3amp = _np.full_like(t3phi, _np.nan, dtype=float)
-        _u.store_default(columns, 't3amp', default=t3amp)
-        _u.store_default(columns, 'u1coord', default=0.)
-        _u.store_default(columns, 'u2coord', default=0.)
-        _u.store_default(columns, 'v1coord', default=0.)
-        _u.store_default(columns, 'v2coord', default=0.)
+        t3amp = np.full_like(t3phi, np.nan, dtype=float)
+        u.store_default(columns, 't3amp', default=t3amp)
+        u.store_default(columns, 'u1coord', default=0.)
+        u.store_default(columns, 'u2coord', default=0.)
+        u.store_default(columns, 'v1coord', default=0.)
+        u.store_default(columns, 'v2coord', default=0.)
 
         columns = dict(t3phi=t3phi, target_id=target_id, 
                     sta_index=sta_index, **columns)
@@ -186,13 +187,12 @@ Second revision of the OI_T3 binary table, OIFITS v. 2
 
     """
     _COLUMNS = [
-        ('CORRINDX_T3AMP', False, '1J', (), _u.is_strictpos, None, None,
+        ('CORRINDX_T3AMP', False, '1J', (), u.is_strictpos, None, None,
             'index of 1st amp. in matching OI_CORR matrix' ), 
-        ('CORRINDX_T3PHI', False, '1J', (), _u.is_strictpos, None, None,
+        ('CORRINDX_T3PHI', False, '1J', (), u.is_strictpos, None, None,
             'index of 1st phase in matching OI_CORR matrix'),
     ]
 
     pass
-
 
 new_t3_hdu = _T3HDU.from_data

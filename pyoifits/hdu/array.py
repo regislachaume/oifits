@@ -1,15 +1,12 @@
-"""
-Implementation of the OI_ARRAY binary table extension.
-"""
+"""Implementation of the OI_ARRAY binary table extension."""
+import numpy as np
+from astropy.coordinates import EarthLocation 
 
+from .. import utils as u
 from .table import _OITableHDU, _OITableHDU11, _OITableHDU22
 from .referenced import _Referenced
-from astropy.coordinates import EarthLocation as _EarthLocation
 
-from .. import utils as _u
-from .. import coo as _coo
-
-import numpy as _np
+__all__ = ["ArrayHDU1", "ArrayHDU2", "new_array_hdu"] 
 
 class _ArrayHDUBase(_OITableHDU):
 
@@ -72,8 +69,8 @@ NotImplementedError
         loc = self.get_location()
         lon = loc.lon.to_value('rad')
         lat = loc.lat.to_value('rad')
-        staune = _u.rotation3d(xyz, 'zy', [-lon, lat], degrees=False)
-        staenu = _np.roll(staune, -1, axis=-1)
+        staune = u.rotation3d(xyz, 'zy', [-lon, lat], degrees=False)
+        staenu = np.roll(staune, -1, axis=-1)
        
         return staenu
  
@@ -100,7 +97,7 @@ NotImplementedError
         arrayHDU = self.get_arrayHDU()
         header = arrayHDU.header
         xyz = [header.get('ARRAY' + var, 0) for var in ['X', 'Y', 'Z']]
-        loc = _EarthLocation.from_geocentric(*xyz, unit="m")
+        loc = EarthLocation.from_geocentric(*xyz, unit="m")
 
         return loc
 
@@ -113,47 +110,27 @@ NotImplementedError
         return container.get_arrayHDU(arrname=self.get_arrname())
 
     def _verify(self, option='warn'):
-
+        
         errors = super()._verify(option)
-      
-        # If no ARRNAME and STA_INDEX, fine (optional), but if
-        # only one of them is present, there's a problem.
+        
         sta_index = getattr(self, 'STA_INDEX', None)
         arrname = self.header.get('ARRNAME', None) 
+        
+        # If no ARRNAME and STA_INDEX, fine when optional, but if
+        # only one of them is present, there's a problem.
 
         loc = f"{type(self).__name__} object"
         
-        if not arrname:
-            if sta_index is not None and not isinstance(self, _ArrayHDU):
-                err_text = "STA_INDEX column present with no ARRNAME keyword "
-                err_text += f"in {loc}."
-                err = self.run_option(option, err_text, fixable=False)
-                errors.appen(err)
-            return errors
+        if arrname is None and sta_index is not None:
+
+            text = f"STA_INDEX column present with no ARRNAME in {loc}"
+            err = self.run_option(option, text, fixable=False)
+            errors.append(err)
          
-        if sta_index is None:
-            err_text = "ARRNAME is given but not STA_INDEX column in {loc}"
-            err = self.run_option(option, err_text, fixable=False)
-            errors.append(err)
-            return errors
+        elif arrname is not None and sta_index is None:
 
-        # check it has the corresponding arrayHDU
-        refhdu = self.get_arrayHDU() 
-        if refhdu is None:
-            err_text = "ArrayHDU with ARRNAME={arrname} not found"
-            err = self.run_option(option, err_text, fixable=False)
-            errors.append(err)
-            return errors
-
-        # We don't report on i <= 0 unreferenced indices: they are
-        # already spotted as not valid by column verification 
-        ref_index = refhdu.STA_INDEX
-        sta_index = _np.unique(sta_index)
-        missing = [str(i) for i in sta_index if i > 0 and i not in ref_index]
-        if len(missing):
-            m = ', '.join(missing)
-            err_text = f"'STA_INDEX' not referenced in ArrayHDU: {m}"
-            err = self.run_option(option, err_text, fixable=False)
+            text = f"ARRNAME is given but not STA_INDEX column in {loc}"
+            err = self.run_option(option, text, fixable=False)
             errors.append(err)
 
         return errors
@@ -164,12 +141,13 @@ NotImplementedError
     def __gt__(self, other):
         return self is not other and self >= other
 
+
 class _MayHaveArrayHDU(_ArrayHDUBase):
-    _CARDS = [('ARRNAME', False, _u.is_nonempty, None, 
+    _CARDS = [('ARRNAME', False, u.is_nonempty, None, 
         'Name of telescope array for cross-reference')]
 
 class _MustHaveArrayHDU(_ArrayHDUBase):
-    _CARDS = [('ARRNAME', True, _u.is_nonempty, None, 
+    _CARDS = [('ARRNAME', True, u.is_nonempty, None, 
         'Name of telescope array for cross-reference')] 
 
 class _ArrayHDU(_MustHaveArrayHDU,_Referenced):
@@ -177,18 +155,18 @@ class _ArrayHDU(_MustHaveArrayHDU,_Referenced):
     _EXTNAME = 'OI_ARRAY'
     _REFERENCE_KEY = 'ARRNAME'
     _CARDS = [
-        ('ARRAYX', True, _u.is_num, None, 'X coordinate of array centre'),
-        ('ARRAYY', True, _u.is_num, None, 'Y coordinate of array centre'),
-        ('ARRAYZ', True, _u.is_num, None, 'Z coordinate of array centre'),
+        ('ARRAYX', True, u.is_num, None, 'X coordinate of array centre'),
+        ('ARRAYY', True, u.is_num, None, 'Y coordinate of array centre'),
+        ('ARRAYZ', True, u.is_num, None, 'Z coordinate of array centre'),
     ]
     _COLUMNS = [
         ('TEL_NAME',  True, '16A', (),  None,            None, None,
                 'telescope name'), 
         ('STA_NAME',  True, '16A', (),  None,            None, None,
                 'station name'), 
-        ('STA_INDEX', True, '1I',  (),  _u.is_strictpos, None, None,
+        ('STA_INDEX', True, '1I',  (),  u.is_int,       None, None,
                 'station index for cross-reference'),
-        ('DIAMETER',  True, '1E', (),   _u.is_strictpos, None, "m",
+        ('DIAMETER',  True, '1E', (),   u.is_strictpos, None, "m",
                 'effective diameter of the aperture'),
         ('STAXYZ',    True, '3D', (3,), None,            None, "m",
                 'station coordinates relative to array centre'),
@@ -201,12 +179,13 @@ class _ArrayHDU(_MustHaveArrayHDU,_Referenced):
             return m.group()
         return name[0:20] 
 
+
     def _verify(self, option='warn'):
 
         errors = super()._verify(option)
-        
+ 
         sta_index = self.STA_INDEX
-        if len(_np.unique(sta_index)) == len(sta_index):
+        if len(np.unique(sta_index)) == len(sta_index):
             return errors
 
         err_text = f"Repeated STA_INDEX in {type(self).__name__}"
@@ -221,7 +200,7 @@ class _ArrayHDU(_MustHaveArrayHDU,_Referenced):
 
     def merge(self, *others):
 
-        norm = _np.linalg.norm
+        norm = np.linalg.norm
         dist_max = self.get_container()._merge_station_distance
 
         def eq(x, y):
@@ -246,6 +225,18 @@ class _ArrayHDU(_MustHaveArrayHDU,_Referenced):
         return (not isinstance(other, _ArrayHDU) and
                 isinstance(other, _ArrayHDUBase) and
                 self.get_arrname() == other.get_arrname())
+    
+    def reindex(self):
+
+        # cannot reindex a standalone table
+        if self.get_container() is None:
+            raise RuntimeError('cannot reindex a standalone OI_ARRAY')
+
+        hdus = [self, *self.get_referrers()]
+
+        for new, old in enumerate(self.STA_INDEX, start=1):
+            for h in hdus:
+                h.STA_INDEX[h.STA_INDEX == old] = new
 
     @classmethod
     def from_data(cls, *, arrname, version=2, 
@@ -314,7 +305,7 @@ column with its name prefixed with NS_
         geodetic = lon is not None and lat is not None and alt is not None
         if geodetic:
             if frame == 'GEOCENTRIC':
-                loc = _EarthLocation.from_geodetic(lon, lat, alt, ellipsoid)
+                loc = EarthLocation.from_geodetic(lon, lat, alt, ellipsoid)
                 arrayxyz = [loc.x.value, loc.y.value, loc.z.value]
         if frame == 'SKY':
             arrayxyz = [0., 0., 0.]
@@ -331,13 +322,13 @@ column with its name prefixed with NS_
                 staxyz = staenu
             else:
                 if not geodetic:
-                    loc = _EarthLocation.from_geocentric(*arrayxyz, unit="m")
+                    loc = EarthLocation.from_geocentric(*arrayxyz, unit="m")
                     loc = loc.to_geodetic(ellipsoid=ellipsoid)
                     lon = loc.lon.value
                     lat = loc.lat.value
                 # (E, N, U) -> (X, Y, Z)_ITRS transform
-                staune = _np.roll(staenu, 1, axis=-1)
-                staxyz = _u.rotation3d(staune, 'yz', [-lat, lon], degrees=True)
+                staune = np.roll(staenu, 1, axis=-1)
+                staxyz = u.rotation3d(staune, 'yz', [-lat, lon], degrees=True)
         if sta_index is None:
             sta_index = list(range(1, len(tel_name) + 1))
         
@@ -352,8 +343,6 @@ column with its name prefixed with NS_
         return super().from_data(version=version, 
                     fits_keywords=fits_keywords, **columns)
 
-            
-
 class ArrayHDU1(
         _ArrayHDU,
         _OITableHDU11, # OFITS1, rev. 1
@@ -363,7 +352,7 @@ class ArrayHDU1(
 First revision of the OI_ARRAY binary table, OIFITS v. 1
 
     """
-    _CARDS = [('FRAME', True, _u.is_frame1,  'GEOCENTRIC', 
+    _CARDS = [('FRAME', True, u.is_frame1,  'GEOCENTRIC', 
         'coordinate frame for array centre and stations')]
 
 class ArrayHDU2(
@@ -375,13 +364,35 @@ class ArrayHDU2(
 Second revision of the OI_ARRAY binary table, OIFITS v. 2
 
     """
-    _CARDS = [('FRAME', True, _u.is_frame2,  'GEOCENTRIC', 
+    _CARDS = [('FRAME', True, u.is_frame2,  'GEOCENTRIC', 
         'coordinate frame for array centre and stations')]
     _COLUMNS = [
-        ('FOV',     False, '1D', (), _u.is_strictpos, None, "arcsec",
+        ('FOV',     False, '1D', (), u.is_strictpos, None, "arcsec",
                 'photometric field of view'), 
-        ('FOVTYPE', False, '6A', (), _u.is_fovtype2,  None, None,
+        ('FOVTYPE', False, '6A', (), u.is_fovtype2,  None, None,
                 'definition of the field of view')
     ]
+        
+    def _verify(self, option='warn'):
+
+        errors = super()._verify(option)
+
+        # Verify STA_INDEX is correct (>= 1)
+
+        indices = np.unique(self.STA_INDEX)
+        if not all(indices >= 1):
+
+            err_text = "'STA_INDEX' should be ≥ 1."
+            fix_text = "Substituting with values >= 1"
+            fix = lambda h=self: self.reindex()
+            
+            if self.get_container() is not None:
+                err = self.run_option(option, err_text, fix_text, fix=fix)
+            else:
+                err = self.run_option(option, err_text, fixable=False)
+            
+            errors.append(err)
+        
+        return errors
 
 new_array_hdu = _ArrayHDU.from_data

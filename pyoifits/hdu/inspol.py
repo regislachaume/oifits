@@ -1,9 +1,12 @@
+import numpy as np
+
 from .array import _MustHaveArrayHDU
 from .table import _OITableHDU, _OITableHDU21
 from .wavelength import _NW
-from .. import utils as _u
+from .. import utils as u
 
-import numpy as _np
+
+__all__ = ["InspolHDU1"]
 
 class _InspolHDUBase(_OITableHDU):
 
@@ -23,7 +26,7 @@ class _InspolHDUBase(_OITableHDU):
 
     def get_jones_matrix(self, shape='data', flatten=False):
 
-        J = _np.zeros((*self.data_shape(), 2, 2), dtype=complex)
+        J = np.zeros((*self.data_shape(), 2, 2), dtype=complex)
 
         inspol = self.get_inspolHDU()
 
@@ -74,9 +77,9 @@ class _InspolHDU(
 
         insname = self.get_insname()
         whdu = self.get_wavelength_HDU(insname=insname[0])
-        wkeep = _np.vectorize(wave_filter)(whdu.get_wave())
-        tkeep = _np.vectorize(target_filter)(self.get_target())
-        ikeep = _np.vectorize(insname_filter)(insname)
+        wkeep = np.vectorize(wave_filter)(whdu.get_wave())
+        tkeep = np.vectorize(target_filter)(self.get_target())
+        ikeep = np.vectorize(insname_filter)(insname)
 
         columns = {}
         spectral_colnames = self._get_spec_colnames()
@@ -104,15 +107,15 @@ First revision of the OI_INSPOL binary table, OIFITS v. 2
 
     """
     _CARDS = [
-        ('NPOL',   True, _u.is_strictpos, None, 
+        ('NPOL',   True, u.is_strictpos, None, 
             'number of polarisations'),
-        ('ORIENT', True, _u.is_nonempty,  None, 
+        ('ORIENT', True, u.is_nonempty,  None, 
             'orientation of the Jones matrix'),
-        ('MODEL',  True, _u.is_nonempty,  None, 
+        ('MODEL',  True, u.is_nonempty,  None, 
             'method used to determine the Jones matrix')
     ]
     _COLUMNS = [
-        ('TARGET_ID',  True, '1I',  (),     _u.is_strictpos, None, None,
+        ('TARGET_ID',  True, '1I',  (),     u.is_strictpos, None, None,
             'target ID in matching OI_TARGET table'),
         ('INSNAME',    True, '32A', (),     None,            None, None,
             'name of matching OI_WAVELENGTH table'), 
@@ -145,7 +148,7 @@ First revision of the OI_INSPOL binary table, OIFITS v. 2
         poldata = self.data
 
         nrows, nwaves = poldata['JXX'].shape
-        J = _np.empty((nrows, nwaves, 2, 2), dtype=complex)
+        J = np.empty((nrows, nwaves, 2, 2), dtype=complex)
 
         J[...,0,0] = poldata['JXX']
         J[...,0,1] = poldata['JXY']

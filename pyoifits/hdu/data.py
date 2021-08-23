@@ -1,3 +1,7 @@
+from numpy import ma
+import numpy as np
+from astropy.time import Time
+
 from .table import _OITableHDU, _OITableHDU1, _OITableHDU2
 from .table import _OIFITS1HDU, _OIFITS2HDU
 from .array import _MayHaveArrayHDU,_MustHaveArrayHDU
@@ -6,28 +10,18 @@ from .wavelength import _MustHaveWavelengthHDU
 from .corr import _MayHaveCorrHDU
 from .inspol import _MayHaveInspolHDU
 
-from .. import utils as _u
+from .. import utils as u
 from .. import coo as _coo
 
-from warnings import warn as _warn
-from astropy.logger import AstropyWarning as _AstropyWarning
-from astropy.io import fits as _fits
-from astropy import table as _table
-from astropy import units as _units
-from numpy import ma as _ma
-import re as _re
-import numpy as _np
-from astropy.time import Time as _Time
-from scipy.spatial.transform import Rotation as _rotation
-from astropy.coordinates import SkyCoord as _SkyCoord
+__all__ = []
 
 class _DataHDU(_OITableHDU):
     
     _CARDS = [
-        ('DATE-OBS', True, _u.is_nonempty, None, 'Date at start of observation'),
+        ('DATE-OBS', True, u.is_nonempty, None, 'Date at start of observation'),
     ]
     _COLUMNS = [
-        ('TARGET_ID', True, '1I', (),         _u.is_strictpos, None,  None,
+        ('TARGET_ID', True, '1I', (),         u.is_strictpos, None,  None,
             'Target ID for cross-reference'), 
         ('MJD',       True, '1D', (),         None,            None,  "d",
             'Modified Julian Day at start of observation'),
@@ -92,11 +86,11 @@ uv (array of float):
         uv = [self._resize_data(self.data[x], shape, flatten)
                     for x in self._get_uvcoord_names()]
 
-        return _np.array(uv)
+        return np.array(uv)
 
     def _update_targetid(self, index_map):
 
-        hdu = _np.copy(self)
+        hdu = np.copy(self)
         hdu.TARGET_ID = [index_map[id] for id in hdu.TARGET_ID]
         return hdu
     
@@ -127,7 +121,7 @@ uv (array of float):
         def gett(n): return self.get_obs_type(n, 'data', True)
         def getc(n): return self.get_corrindx(n, 'data', True)
         def resize(x): return self._resize_data(x, 'data', True)
-        def hstack(x): return _ma.hstack(x)
+        def hstack(x): return ma.hstack(x)
         
         for name in names:
             if name == 'value':
@@ -135,11 +129,11 @@ uv (array of float):
             elif name == 'error':
                 col = hstack([getf(n) for n in err_names])
             elif name == 'observable':
-                col = _np.hstack([resize(n) for n in obs_names])
+                col = np.hstack([resize(n) for n in obs_names])
             elif name == 'type':
-                col = _np.hstack([gett(n) for n in obs_names])
+                col = np.hstack([gett(n) for n in obs_names])
             elif name == 'CORRINDX':
-                col = _np.hstack([getc(n) for n in obs_names])
+                col = np.hstack([getc(n) for n in obs_names])
             else:
                 col = hstack([getf(name)] * len(obs_names))
             cols.append(col)
@@ -176,7 +170,7 @@ uv (array of float):
             else:
                 x = default
             x = self._resize_data(x, shape, flatten)
-            x = _ma.masked_array(x, mask=not hasattr(self, name))
+            x = ma.masked_array(x, mask=not hasattr(self, name))
             return x
 
         mask = self.FLAG
@@ -185,7 +179,7 @@ uv (array of float):
         else:
             x = self._resize_data(default, shape)
             flag = flag | True
-        x = _ma.masked_array(x, mask=mask)
+        x = ma.masked_array(x, mask=mask)
         if flatten:
             x = x.ravel()
  
@@ -217,18 +211,20 @@ If the quantity is not differential, 0 is returned.
         """
 
         visref = self._resize_data(0, 'data', flatten)
-        return _ma.masked_array(visref, mask=True)
+        return ma.masked_array(visref, mask=True)
 
     def _to_table(self, full_uv=False, correlations=False, remove_masked=False,
             observable=None, observable_type=None, mjd_min=None, mjd_max=None,
             target=None, arrname=None, insname=None, 
             wavelmin=None, wavelmax=None):
 
+        from astropy.table import Table
+
         names = self._table_colnames(full_uv=full_uv, correlations=correlations)
         cols = self._table_cols(full_uv=full_uv, correlations=correlations)
-        tab = _table.Table(cols, names=names)
+        tab = Table(cols, names=names)
 
-        keep = _np.ones_like(tab['MJD'], dtype=bool)
+        keep = np.ones_like(tab['MJD'], dtype=bool)
 
         if remove_masked:
             keep *= ~tab['value'].mask 
@@ -241,15 +237,15 @@ If the quantity is not differential, 0 is returned.
         if wavelmax is not None:
             keep *= tab['EFF_WAVE'] <= wavelmax
         if observable is not None:
-            keep *= _np.in1d(tab['observable'], _np.atleast_1d(observable))
+            keep *= np.in1d(tab['observable'], np.atleast_1d(observable))
         if observable_type is not None:
-             keep *= _np.in1d(tab['type'], _np.atleast_1d(observable_type))
+             keep *= np.in1d(tab['type'], np.atleast_1d(observable_type))
         if target is not None:
-            keep *= _np.in1d(tab['TARGET'], _np.atleast_1d(target))
+            keep *= np.in1d(tab['TARGET'], np.atleast_1d(target))
         if arrname is not None:
-            keep *= _np.in1d(tab['ARRNAME'], _np.atleast_1d(arrname))
+            keep *= np.in1d(tab['ARRNAME'], np.atleast_1d(arrname))
         if insname is not None:
-            keep *= _np.in1d(tab['INSNAME'], _np.atleast_1d(insname))
+            keep *= np.in1d(tab['INSNAME'], np.atleast_1d(insname))
 
         tab = tab[keep]
 
@@ -266,11 +262,13 @@ If the quantity is not differential, 0 is returned.
 
     @classmethod
     def _get_uvcoord_names(cls, full_uv=False):
-       
+        
+        import re      
+ 
         if full_uv:
             return ['U1COORD', 'V1COORD', 'U2COORD', 'V2COORD']
-         
-        names = [c for c in cls._COLUMNS['name'] if _re.match('[UV].?COORD', c)]
+        
+        names = [c for c in cls._COLUMNS['name'] if re.match('[UV].?COORD', c)]
         names = sorted(names, key=lambda x: x[1::-1])
         return names
 
@@ -350,10 +348,10 @@ Returns:
         columns = dict(mjd=mjd, int_time=int_time, flag=flag, **columns)
 
         if date is None:
-            mjd = _np.array(mjd)
-            int_time = _np.array(int_time)
+            mjd = np.array(mjd)
+            int_time = np.array(int_time)
             mjdobs = min(mjd - int_time / 86400. / 2)
-            date = _Time(mjdobs, format='mjd').isot
+            date = Time(mjdobs, format='mjd').isot
    
         fits_keywords = {'DATE-OBS': date, **fits_keywords}
 
@@ -402,11 +400,11 @@ astropy.coordinates.SkyCoord object
         coo = refcoo[indices]
         
         # apply epoch correction to positions
-        obstime = _Time(self.MJD, format='mjd')
+        obstime = Time(self.MJD, format='mjd')
         coo = _coo.apply_space_motion(coo, obstime, correct_motion=False)
 
         if max_distance is not None:
-            coo.distance[_np.isnan(coo.distance)] = max_distance
+            coo.distance[np.isnan(coo.distance)] = max_distance
 
         return coo 
 
@@ -461,6 +459,9 @@ Raises
 NotImplemented Error
     There is no associated OI_ARRAY table (possible in OIFITS v. 1)
         """   
+        from astropy.coordinates import SkyCoord 
+        from astropy import units
+        
         arrayHDU = self.get_arrayHDU() 
         waveHDU = self.get_wavelengthHDU()
         if arrayHDU is None:
@@ -478,21 +479,21 @@ NotImplemented Error
         loc = arrayHDU.get_location()
         lat = loc.lat.to_value('rad')
         h = loc.height.value
-        obswl = waveHDU.EFF_WAVE.mean() * _units.m
+        obswl = waveHDU.EFF_WAVE.mean() * units.m
         waveHDU = self.get_wavelengthHDU()
 
         # Transform FK5 coordinates to apparent (atmosphere-refracted)
         # ITRS coordinates. We need to go through altaz because astropy.
-        FK5 = self.get_sky_coord(max_distance=1 * _units.Mpc)
+        FK5 = self.get_sky_coord(max_distance=1 * units.Mpc)
         altaz_frame = _coo.altaz_frame(loc, obswl=obswl, refraction=refraction)
         # print(f"{FK5.ra[0]=} {FK5.dec[0]=}")
 
-        UVW = _np.empty_like(XYZ)      
+        UVW = np.empty_like(XYZ)      
  
         for i, (fk5, xyz) in enumerate(zip(FK5, XYZ)):
 
             altaz = fk5.transform_to(altaz_frame)
-            altaz = _SkyCoord(altaz.replicate(pressure=0))
+            altaz = SkyCoord(altaz.replicate(pressure=0))
             itrs = altaz.itrs.spherical
 
             # (X, Y, Z)_ITRS -> (u, v, w)_SKY transform
@@ -511,14 +512,16 @@ NotImplemented Error
                                  # angle for an observer at Greenwich meridian)
             lat = itrs.lat.value # target declination in ITRS
             
-            wuv = _u.rotation3d(xyz, 'zy', [-lon, lat], degrees=True)
-            uvw = _np.roll(wuv, -1, axis=-1)
+            wuv = u.rotation3d(xyz, 'zy', [-lon, lat], degrees=True)
+            uvw = np.roll(wuv, -1, axis=-1)
 
             UVW[i] = uvw
 
         return UVW
 
     def _bin_column(self, weights, obs_name, err_name):
+
+        from astropy.io.fits import Column
 
         data = self.data[obs_name]
         
@@ -527,12 +530,12 @@ NotImplemented Error
         error = self.data[err_name]
         error[error == 0] = error[error != 0].min()
         
-        datamask = self.FLAG | _np.isnan(data)
-        data = _ma.masked_array(data, mask=datamask)
-        inverror2 = _ma.masked_array(error ** -2, mask=datamask)
+        datamask = self.FLAG | np.isnan(data)
+        data = ma.masked_array(data, mask=datamask)
+        inverror2 = ma.masked_array(error ** -2, mask=datamask)
 
-        wsum = _ma.dot(       inverror2, weights)
-        dsum = _ma.dot(data * inverror2, weights)
+        wsum = ma.dot(       inverror2, weights)
+        dsum = ma.dot(data * inverror2, weights)
 
         new_data = dsum / wsum
         new_error = wsum ** -0.5
@@ -542,17 +545,20 @@ NotImplemented Error
         unit = col.unit
         new_fmt = f"{nchan}{col.format[-1]}"
 
-        new_data = _fits.Column(obs_name, new_fmt, unit, array=new_data)
-        new_error = _fits.Column(err_name, new_fmt, unit, array=new_error)
+        new_data = Column(obs_name, new_fmt, unit, array=new_data)
+        new_error = Column(err_name, new_fmt, unit, array=new_error)
 
         return [new_data, new_error]
 
     def _trim_helper(self, *, target_filter=lambda targ: True, 
             wave_filter=lambda wave: True, insname_filter=None,
             keep_ns_columns=False):
+        
+        from warnings import warn 
+        from astropy.logger import AstropyWarning
 
-        wkeep = _np.vectorize(wave_filter)(self.get_wave(shape='none'))
-        tkeep = _np.vectorize(target_filter)(self.get_target())
+        wkeep = np.vectorize(wave_filter)(self.get_wave(shape='none'))
+        tkeep = np.vectorize(target_filter)(self.get_target())
 
         columns = {}
         spectral_colnames = self._get_spec_colnames()
@@ -567,7 +573,7 @@ NotImplemented Error
                 data = data[:,wkeep,:][...,wkeep]
                 nref = nref[:,wkeep]
                 if nref.sum() != data.sum():
-                    _warn(_AstropyWarning('trimming leaves out reference '
+                    warn(AstropyWarning('trimming leaves out reference '
                            'wavelengths in differential visibility'))
             elif colname in spectral_colnames:
                 if data.ndim == 1:
@@ -581,6 +587,8 @@ NotImplemented Error
 
     def _bin_helper(self, weights):
 
+        from astropy.io.fits import Column
+
         if weights is None:
             return self.copy()
 
@@ -589,15 +597,15 @@ NotImplemented Error
         err_names = [n for n in self.get_error_names() if n in colnames]    
         oi_colnames = [*obs_names, *err_names, 'FLAG']
        
-        new_mask = _np.dot(~self.FLAG, weights) < 1 
+        new_mask = np.dot(~self.FLAG, weights) < 1 
         
         new_cols = []
         for obs_name, err_name in zip(obs_names, err_names):
             new_cols += self._bin_column(weights, obs_name, err_name)
        
         nchan = new_mask.shape[1] 
-        new_flag = _fits.Column('FLAG', f"{nchan}L", array=new_mask)
-        new_cols.append(_fits.Column('FLAG', f"{nchan}L", array=new_mask))
+        new_flag = Column('FLAG', f"{nchan}L", array=new_mask)
+        new_cols.append(new_flag)
        
         new_cols += [c for c in self.columns if c.name not in oi_colnames]
  
@@ -642,26 +650,24 @@ class _DataHDU2(
         _MayHaveInspolHDU,
         _OIFITS2HDU, 
       ):
+    
     def _verify(self, option='warn'):
 
         errors = super()._verify(option=option)
 
         # Basic CORRINDX checks
+        # this should go to the correlation classes but not sure how.
 
         colnames = self.columns.names
         obs_names = [n for n in self.get_observable_names() if n in colnames]
-        index = _np.ma.hstack([self.get_corrindx(n, flatten=True) 
+        index = np.ma.hstack([self.get_corrindx(n, flatten=True) 
                                                 for n in obs_names])
         index = index[~index.mask]
-        unique = _np.unique(index)
+        unique = np.unique(index)
         if len(unique) < len(index):
             err_txt = 'repeated CORRINDX'
             self.run_option(option, err_txt, fixable=False)
         
-        if _np.any(index <= 0):
-            err_txt = 'negative or null CORRINDX'
-            self.run_option(option, err_txt, fixable=False)
-
         # Negative or NULL errors were informally used in v1 to mask 
         # specific data. Using NULL (i.e. NaN per FITS standard) for both
         # mean and error (OIFITS 2 standard).
@@ -679,46 +685,28 @@ class _DataHDU2(
             flag = self.data['FLAG']
 
             invalid = errval < 0
-            if _np.any(invalid):
+            if np.any(invalid):
 
                 def fix_neg(h=self): 
-                    h.data[errname][invalid] = _np.nan
-                    h.data[obsname][invalid] = _np.nan
+                    h.data[errname][invalid] = np.nan
+                    h.data[obsname][invalid] = np.nan
 
                 err_txt = f'{errname} cannot be strictly negative.'
                 fix_txt = 'masking {name} and {errname} values'
                 self.run_option(option, err_txt, fix_txt, fix_neg)
 
-            invalid = _np.isnan(errval) & ~_np.isnan(obsval)
-            if _np.any(invalid):
+            invalid = np.isnan(errval) & ~np.isnan(obsval)
+            if np.any(invalid):
                 
                 def fix_null(h=self): 
-                    h.data[errname][invalid] = _np.nan
-                    h.data[obsname][invalid] = _np.nan
+                    h.data[errname][invalid] = np.nan
+                    h.data[obsname][invalid] = np.nan
                 
                 err_txt = f'{obsname} must be NULL if {errname} is'
                 fix_txt = 'masking {name} and {errname} values'
                 self.run_option(option, err_txt, fix_txt, fix_null)
  
         return errors
-
-    def get_corrindx(self, obsname, shape='none', flatten=False):
-
-        corrindex_name = obsname + '_CORRINDEX'
-        if corrindex_name not in self.columns.names:
-            corrindex = _np.zeros_like(self.data[obsname], dtype=int)
-            corrindex = _np.ma.masked_equal(corrindex, 0)
-        else:
-            corrindex = self.data[corrindex_name]
-            relindex = _np.arange(self.get_nwaves())
-            corrindex = corrindex[:,None] + relindex
-            corrindex = _np.ma.masked_array(corrindex, mask=self.FLAG)
-
-        if flatten:
-            corrindex = corrindex.ravel()
-
-        return corrindex
-
 
 # OIFITS2 Table rev1 (new table in OIFITS2)
 class _DataHDU21(
@@ -733,7 +721,7 @@ class _DataHDU22(
         _OITableHDU2
       ):
     
-    _COLUMNS = [('TIME', True, '1D', (), _u.is_zero, 0., "s",
+    _COLUMNS = [('TIME', True, '1D', (), u.is_zero, 0., "s",
                     'For backwards compatibility only')]
 
     @classmethod

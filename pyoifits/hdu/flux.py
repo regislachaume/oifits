@@ -1,15 +1,10 @@
-"""
-Implementation of the OI_FLUX binary table extension containing either
-the calibrated fluxes of the targets or the uncalibrated fluxes measured
-at the interferometer aperture. 
-"""
-
 from .target import _MustHaveTargetHDU
 from .array import _MayHaveArrayHDU
 from .wavelength import _MustHaveWavelengthHDU, _NW
 from .data import _DataHDU, _DataHDU21
-from .. import utils as _u
+from .. import utils as u
 
+__all__ = ["FluxHDU1", "new_flux_hdu"] 
 
 class _FluxHDU(
         _DataHDU,
@@ -20,11 +15,11 @@ class _FluxHDU(
     _EXTNAME = 'OI_FLUX'
     
     _CARDS = [
-        ('CALSTAT', True,  _u.is_calstat, None, 
+        ('CALSTAT', True,  u.is_calstat, None, 
             'Flux is (C)alibrated or (U)ncalibrated'),
-        ('FOV',     False, _u.is_pos,     None, 
+        ('FOV',     False, u.is_pos,     None, 
             'Field of view (arcsec)'),
-        ('FOVTYPE', False, _u.is_fovtype, None, 
+        ('FOVTYPE', False, u.is_fovtype, None, 
             'Type of field of view'),
     ]
     

@@ -1,21 +1,12 @@
-"""
-Implementation of the OI_TARGET binary table extension
-"""
+import numpy as np
 
 from .table import _OITableHDU, _OITableHDU11, _OITableHDU22
-from .. import utils as _u
+from .. import utils as u
 
-import numpy as _np
-from astroquery.simbad import Simbad as _Simbad
-from astropy.coordinates import SkyCoord as _SkyCoord
-from astropy import units as _units
-from astropy.time import Time as _Time
+__all__ = ["TargetHDU1", "TargetHDU2",
+           "new_target_hdu", "new_target_hdu_from_simbad"]
 
-_deg = _np.deg2rad(1)
-_arcsec = _deg / 3600
-_milliarcsec = _arcsec / 1000
-
-def _decode(s):
+def decode(s):
     if isinstance(s, bytes):
         return s.decode()
     return s
@@ -31,6 +22,23 @@ class _MustHaveTargetHDU(_OITableHDU):
         else:
             val = self._xmatch(refhdu, 'TARGET_ID', name=name)
         return self._resize_data(val, shape, flatten)
+
+    def get_data_referrers(self):
+
+        if (container := self.get_container()) is None:
+            return []
+        
+        return container.get_dataHDUs()
+
+    def get_referrers(self):
+
+        from .data import _DataHDU
+        from .inspol import _InspolHDU
+
+        if (container := self.get_container()) is None:
+            return []
+
+        return container.get_HDUs((_DataHDU, _InspolHDU))
 
     def get_target(self, shape='none', flatten=False, default='N/A'):
         """
@@ -67,6 +75,10 @@ Returns
 astropy.coordinates.SkyCoord object
 
         """
+        from astropy.coordinates import SkyCoord
+        from astropy import units 
+        from astropy.time import Time 
+        
         coordinates = []
 
         refhdu = self.get_targetHDU()
@@ -78,21 +90,21 @@ astropy.coordinates.SkyCoord object
         # value.  This excludes ICRS where equinox is fixed.  With the
         # recommended value 2000.0, it means FK5 J2000.0/2000.0 ≃ ICRS with ~70
         # mas accuracy.  Not interferometry-grade precision...
-        equinox = _Time(rows['EQUINOX'], format='decimalyear')
+        equinox = Time(rows['EQUINOX'], format='decimalyear')
         epoch = equinox
         frame = 'fk5'
 
-        ra = rows['RAEP0'] * _units.deg
-        dec = rows['DECEP0'] * _units.deg
-        pm_ra = rows['PMRA'] * _units.deg / _units.yr
-        pm_dec = rows['PMDEC'] * _units.deg / _units.yr
-        rv = rows['SYSVEL'] * _units.m / _units.s
-        plx = rows['PARALLAX'] * _units.deg / _units.yr
-        plx[plx == 0] = _np.nan
+        ra = rows['RAEP0'] * units.deg
+        dec = rows['DECEP0'] * units.deg
+        pm_ra = rows['PMRA'] * units.deg / units.yr
+        pm_dec = rows['PMDEC'] * units.deg / units.yr
+        rv = rows['SYSVEL'] * units.m / units.s
+        plx = rows['PARALLAX'] * units.deg / units.yr
+        plx[plx == 0] = np.nan
 
-        dist = 1 / plx.to_value('arcsec / yr') * _units.pc
+        dist = 1 / plx.to_value('arcsec / yr') * units.pc
         
-        coo = _SkyCoord(
+        coo = SkyCoord(
             ra=ra, dec=dec, distance=dist,
             pm_ra_cosdec=pm_ra, pm_dec=pm_dec, radial_velocity=rv,
             equinox=equinox, obstime=epoch, frame=frame,
@@ -299,20 +311,6 @@ Get the corresponding OI_TARGET HDU.
         """
         return self._container.get_targetHDU()
     
-    def _fix_negative_target_ids(self):
-
-        thdu = self.get_targetHDU()
-
-        all_ids = _np.unique(thdu.TARGET_ID)
-        invalid_ids = [id for id in all_ids if id <= 0]
-                    
-        if not invalid_ids:
-            return
-
-        new_ids = [id for id in range(1, len(all_ids) + 1) if id not in all_ids]
-        sub = {old: new for old, new in zip(invalid_ids, new_ids)}
-
-        thdu._substitute_ids(sub)
 
     def _verify(self, option='warn'):
 
@@ -324,7 +322,7 @@ Get the corresponding OI_TARGET HDU.
         if thdu is self:
             return errors
 
-        ids = _np.unique(self.TARGET_ID)
+        ids = np.unique(self.TARGET_ID)
         missing_ids = [v for v in ids if v not in thdu.TARGET_ID]
         if missing_ids:
             missing = ' '.join([str(id) for id in missing_ids])   
@@ -338,7 +336,7 @@ class _TargetHDU(_MustHaveTargetHDU):
     
     _EXTNAME = 'OI_TARGET' 
     _COLUMNS = [
-        ('TARGET_ID',  True, 'I',  (), _u.is_strictpos, None, None,
+        ('TARGET_ID',  True, 'I',  (), u.is_int,        None, None,
             'target ID for cross-reference'),
         ('RAEP0',      True, '1D',  (), None,            None, "deg",
             'right ascension at epoch'), 
@@ -352,9 +350,9 @@ class _TargetHDU(_MustHaveTargetHDU):
             'uncertainty on declination'),
         ('SYSVEL',     True, '1D',  (), None,            None, "m/s",
             'radial velocity'), 
-        ('VELTYP',     True, '8A',  (), _u.is_veltyp,    None, None,
+        ('VELTYP',     True, '8A',  (), u.is_veltyp,    None, None,
             'reference frame for radial velocity'), 
-        ('VELDEF',     True, '8A',  (), _u.is_veldef,    None, None,
+        ('VELDEF',     True, '8A',  (), u.is_veldef,    None, None,
             'definition for radial velocity (e.g. RADIO)'),
         ('PMRA',       True, '1D',  (), None,            0.,   "deg/yr",
             'proper motion in right ascension'), 
@@ -377,7 +375,7 @@ class _TargetHDU(_MustHaveTargetHDU):
         errors = super()._verify(option)
 
         target_id = self.TARGET_ID
-        if len(_np.unique(target_id)) == len(target_id):
+        if len(np.unique(target_id)) == len(target_id):
             return errors
 
         err_text = f"Repeated TARGET_ID in {type(self).__name__}"
@@ -385,11 +383,17 @@ class _TargetHDU(_MustHaveTargetHDU):
         errors.append(err)
 
         return errors
+    
+    def reindex(self):
+        """Reindex targets IDs from 1 to N"""      
 
-    def _substitute_ids(self, sub):
+        if (container := self.get_container()) is None:
+            raise RuntimeError('cannot reindex standalone OI_TARGET')
 
-        for h in [self, *self.get_container().get_dataHDUs()]:
-            for old, new in sub.items():
+        hdus = [self, *container.get_dataHDUs(), *container.get_inspolHDUs()]
+
+        for new, old in enumerate(self.TARGET_ID, start=1):
+            for h in hdus:
                 h.TARGET_ID[h.TARGET_ID == old] = new
    
     def __add__(self, other):
@@ -421,7 +425,7 @@ class _TargetHDU(_MustHaveTargetHDU):
     def _trim_helper(self, *, target_filter=lambda targ: True, 
             wave_filter=None, insname_filter=None, keep_ns_columns=False):
 
-        tkeep = _np.vectorize(target_filter)(self.get_target())
+        tkeep = np.vectorize(target_filter)(self.get_target())
         
         columns = {}
         data = self.data
@@ -518,18 +522,18 @@ where equinox and epoch are equal, preferably 2000.0
         if target_id is None:
             target_id = list(range(1, nrows + 1))
 
-        _u.store_default(columns, 'ra_err', default=_np.nan)
-        _u.store_default(columns, 'dec_err', default=_np.nan)
-        _u.store_default(columns, 'pmra', default=_np.nan)
-        _u.store_default(columns, 'pmdec', default=_np.nan)
-        _u.store_default(columns, 'pmra_err', default=_np.nan)
-        _u.store_default(columns, 'pmdec_err', default=_np.nan)
-        _u.store_default(columns, 'parallax', default=_np.nan)
-        _u.store_default(columns, 'para_err', default=_np.nan)
-        _u.store_default(columns, 'sysvel', default=_np.nan)
-        _u.store_default(columns, 'veltyp', default='BARYCENTRIC')
-        _u.store_default(columns, 'veldef', default='OPTICAL')
-        _u.store_default(columns, 'equinox', default=2000.0)
+        u.store_default(columns, 'ra_err', default=np.nan)
+        u.store_default(columns, 'dec_err', default=np.nan)
+        u.store_default(columns, 'pmra', default=np.nan)
+        u.store_default(columns, 'pmdec', default=np.nan)
+        u.store_default(columns, 'pmra_err', default=np.nan)
+        u.store_default(columns, 'pmdec_err', default=np.nan)
+        u.store_default(columns, 'parallax', default=np.nan)
+        u.store_default(columns, 'para_err', default=np.nan)
+        u.store_default(columns, 'sysvel', default=np.nan)
+        u.store_default(columns, 'veltyp', default='BARYCENTRIC')
+        u.store_default(columns, 'veldef', default='OPTICAL')
+        u.store_default(columns, 'equinox', default=2000.0)
 
         columns = dict(target=target, raep0=ra, decep0=dec,
                 target_id=target_id, **columns) 
@@ -564,8 +568,12 @@ Any additional keyword argument will be appended as a non-standard FITS
 column with its name prefixed with NS_ 
 
         """
+        from astroquery.simbad import Simbad 
 
-        simbad = _Simbad()
+        deg = np.deg2rad(1)
+        mas = deg / 3_600_000
+
+        simbad = Simbad()
         
         # at CDS is not working
         simbad.SIMBAD_URL = 'https://simbad.harvard.edu/simbad/sim-script' 
@@ -585,43 +593,43 @@ column with its name prefixed with NS_
 
         # target ID must be ascii, if not, pick simbad
         main_id = tab['MAIN_ID']
-        target = [s if ascii(s)[1:-1] == s else _decode(m)
+        target = [s if ascii(s)[1:-1] == s else decode(m)
                             for s, m in zip(simbad_id, main_id)]
 
-        def tolist(x, deflt=_np.nan):
-            x = [_decode(e) for e in x.tolist()]
-            x = _np.array([deflt if e in ['', None] else e for e in x])
+        def tolist(x, deflt=np.nan):
+            x = [decode(e) for e in x.tolist()]
+            x = np.array([deflt if e in ['', None] else e for e in x])
             return x
 
         def ellipse_to_xy_err(a, b, theta):
             a2, b2 = a**2, b**2
-            cos2, sin2 = _np.cos(theta) ** 2, _np.sin(theta) ** 2
-            x = _np.sqrt(a2 * cos2 + b2 * sin2)
-            y = _np.sqrt(a2 * sin2 + b2 * cos2)
+            cos2, sin2 = np.cos(theta) ** 2, np.sin(theta) ** 2
+            x = np.sqrt(a2 * cos2 + b2 * sin2)
+            y = np.sqrt(a2 * sin2 + b2 * cos2)
             return x,y 
 
         # coordinates and parallaxes
         ra = tolist(tab['RA_d_A_FK5_J2000_2000'])
         dec = tolist(tab['DEC_d_D_FK5_J2000_2000'])
-        a = _milliarcsec / _deg * tolist(tab['COO_ERR_MAJA'])
-        b = _milliarcsec  / _deg * tolist(tab['COO_ERR_MINA'])
-        theta = _deg * tolist(tab['COO_ERR_ANGLE'])
+        a = mas / deg * tolist(tab['COO_ERR_MAJA'])
+        b = mas  / deg * tolist(tab['COO_ERR_MINA'])
+        theta = deg * tolist(tab['COO_ERR_ANGLE'])
         ra_err, dec_err  = ellipse_to_xy_err(a, b, theta)
         equinox = 2000.
  
-        parallax = _milliarcsec / _deg * tolist(tab['PLX_VALUE'])
-        para_err = _milliarcsec / _deg * tolist(tab['PLX_ERROR'])
+        parallax = mas / deg * tolist(tab['PLX_VALUE'])
+        para_err = mas / deg * tolist(tab['PLX_ERROR'])
         
         # velocity and proper motion
         sysvel = 1e3 * tolist(tab['RVZ_RADVEL'])
         veldef = tolist(tab['RVZ_WAVELENGTH'], 'OPTICAL')
         veltyp = 'BARYCENTRIC'
         
-        pmra = _milliarcsec / _deg * tolist(tab['PMRA'])
-        pmdec = _milliarcsec / _deg * tolist(tab['PMDEC'])
-        a = _milliarcsec / _deg * tolist(tab['PM_ERR_MAJA'])
-        b = _milliarcsec / _deg * tolist(tab['PM_ERR_MINA'])
-        theta = _deg * tolist(tab['PM_ERR_ANGLE'])
+        pmra = mas / deg * tolist(tab['PMRA'])
+        pmdec = mas / deg * tolist(tab['PMDEC'])
+        a = mas / deg * tolist(tab['PM_ERR_MAJA'])
+        b = mas / deg * tolist(tab['PM_ERR_MINA'])
+        theta = deg * tolist(tab['PM_ERR_ANGLE'])
         pmra_err, pmdec_err = ellipse_to_xy_err(a, b, theta)
        
         # spectral type
@@ -636,9 +644,9 @@ column with its name prefixed with NS_
                 **columns)
 
 def _reshape_to_table(x, nrows):
-    if not _np.shape(x):
-        return _np.full(x, (nrows,))
-    return _np.asarray(x)
+    if not np.shape(x):
+        return np.full(x, (nrows,))
+    return np.asarray(x)
 
 class TargetHDU1(
         _TargetHDU,
@@ -650,7 +658,7 @@ First revision of the OI_TARGET binary table, OIFITS v. 1
 
     """
     _COLUMNS = [
-        ('TARGET',  True, '16A', (), _u.is_nonempty, None, None,
+        ('TARGET',  True, '16A', (), u.is_nonempty, None, None,
             'name of the celestial object'),
         ('SPECTYP', True, '16A', (), None,           None, None,
             'spectral type'),
@@ -666,26 +674,32 @@ Second revision of the OI_TARGET binary table, OIFITS v. 2
 
     """
     _COLUMNS = [
-        ('TARGET',   True,  '32A', (), _u.is_nonempty, None,  None,
+        ('TARGET',   True,  '32A', (), u.is_nonempty, None,  None,
             'name of the celestial object'),
         ('SPECTYP',  True,  '32A', (), None,           None,  None,
             'spectral type'),
-        ('CATEGORY', False, '3A',  (), _u.is_category, 'SCI', None,
+        ('CATEGORY', False, '3A',  (), u.is_category, 'SCI', None,
             'observation category: SCIence or CALibration'),
     ]
 
     def _verify(self, option='warn'):
 
         errors = super()._verify(option)
-
+        
         # Verify Target ID is correct (>= 1)
 
-        val = _np.unique(self.TARGET_ID)
+        val = np.unique(self.TARGET_ID)
         if not all(val >= 1):
+
             err_text = "'TARGET_ID' should be ≥ 1."
-            fix_text = "Substituting with values >= 1"
-            fix = lambda h=self: self._fix_negative_target_ids()
-            err = self.run_option(option, err_text, fix_text, fix=fix)
+
+            if self.get_container() is not None:
+                fix = lambda h=self: h.reindex()
+                fix_text = "Substituting with values >= 1"
+                err = self.run_option(option, err_text, fix_text, fix=fix)
+            else:
+                err = self.run_option(option, err_text, fixable=False)
+        
             errors.append(err)
 
         return errors

@@ -1,15 +1,10 @@
-"""
-Implementation of the OI_CORR binary table extension containing corralation
-between interferometric data in OI_VIS, OI_VIS2, OI_T3, and OI_FLUX binary
-table extensions
-"""
+import numpy as np
 
 from .table import _OITableHDU, _OITableHDU21
 from .referenced import _Referenced
-from .. import utils as _u
-from scipy import sparse as _sparse
+from .. import utils as u
 
-import numpy as _np
+__all__ = ["CorrHDU1"]
 
 class _CorrHDUBase(_OITableHDU):
     
@@ -24,27 +19,66 @@ class _CorrHDUBase(_OITableHDU):
         return self._container.get_corrHDU(corrname)
 
 class _MayHaveCorrHDU(_CorrHDUBase):
-    _CARDS = [('CORRNAME', False, _u.is_nonempty, None, 
-        'correlation name for cross-reference')]
 
-class _MustHaveCorrHDU(_CorrHDUBase):
-    _CARDS = [('CORRNAME', True,  _u.is_nonempty, None, 
+    _CARDS = [('CORRNAME', False, u.is_nonempty, None, 
         'correlation name for cross-reference')]
+    
+    def get_corrindx(self, obsname=None, shape='none', flatten=False):
 
-class _CorrHDU(_MustHaveCorrHDU,_Referenced):
+        if obsname is None:
+            colnames = self.columns.names
+            obsnames = self.get_observable_names()
+            obsnames = [n for n in obsnames if n in colnames]
+            index = [self.get_corrindx(obsname, flatten=flatten, shape=shape)
+                            for obsname in obsnames]
+            return index
+        
+        corrindex_name = obsname + '_CORRINDEX'
+        if corrindex_name not in self.columns.names:
+            index = np.zeros_like(self.data[obsname], dtype=int)
+            index = np.ma.masked_equal(index, 0)
+        else:
+            index = self.data[corrindex_name]
+            relindex = np.arange(self.get_nwaves())
+            index = index[:,None] + relindex
+            index = np.ma.masked_array(index, mask=self.FLAG)
+
+        if flatten:
+            index = index.ravel()
+
+        return index
+
+    def _verify(self, option='warn'):
+        
+        errors = super()._verify(option)
+   
+        # check for unicity of indices
+ 
+        index = np.ravel([i[~i.mask] for i in self.get_corrindx(flatten=True)])
+        
+        if len(np.unique(index)) < len(index):
+            err_text = f"repeated CORRINDX in {self.header['EXTNAME']}"
+            err = self.run_option(option, err_text, fixable=False)
+            errors.append(err)
+
+        return errors
+
+class _CorrHDU(_CorrHDUBase,_Referenced):
     
     _EXTNAME = 'OI_CORR'
     _REFERENCE_KEY = 'CORRNAME'
 
     _CARDS = [
-        ('NDATA', True,  _u.is_strictpos, None, 
+        ('CORRNAME', True,  u.is_nonempty, None, 
+            'correlation name for cross-reference'),
+        ('NDATA', True,  u.is_strictpos, None, 
             'size of correlation matrix (NDATAxNDATA)'),
     ] 
     _COLUMNS = [
-        ('IINDX', True, '1J', (), _u.is_strictpos, None, None,
-            '1st index (<= NDATA)'),
-        ('JINDX', True, '1J', (), _u.is_strictpos, None, None,
-            '2nd index (<= NDATA)'), 
+        ('IINDX', True, '1J', (), u.is_strictpos, None, None,
+            '1st index'),
+        ('JINDX', True, '1J', (), u.is_strictpos, None, None,
+            '2nd index'), 
         ('CORR',  True, '1D', (), None,            None, None,
             'correlation C[IINDX,JINDX]')
     ]
@@ -58,13 +92,57 @@ class _CorrHDU(_MustHaveCorrHDU,_Referenced):
 
         errors = super()._verify(option)
 
-        corr_index = self.CORR_INDEX
-        if len(_np.unique(corr_index)) == len(coor_index):
-            return errors
+        # order IINDX JINDX
 
-        err_text = f"Repeated CORR_INDEX in {type(self).__name__}"
-        err = self.run_option(option, err_text, fixable=False)
-        errors.append(err)
+        inverted = self.IINDX > self.JINDX
+        if any(inverted):
+            err_text = "IINDX > JINDX in OI_CORR."
+            fix_text = "Order swapped"
+            def fix(h=self):
+                tmp = self.IINDX[inverted]
+                self.IINDX[inverted] = self.JINDX[inverted]
+                self.JINDX[inverted] = tmp
+            err = self.run_option(option, err_text, fix_text, fix)
+
+        # ignore IINDX = JINDX
+
+        not_equal = self.IINDX != self.JINDX
+        if not all(not_equal):
+            err_text = 'IINDX = JINDX in OI_CORR.'
+            fix_text = 'Removed'
+            def fix(h=self):
+                h.data = h.data[not_equal]
+                h.header['NAXIS2'] = len(h.data)
+            err = self.run_option(option, err_text, fix_text, fix) 
+
+        # check for redundancies
+        n = len(self.IINDX)
+        n_unique = np.unique([self.IINDX, self.JINDX], axis=1).shape[1]
+
+        if n_unique < n:
+            err_text = f"Repeated CORR_INDEX pair in OI_CORR."
+            err = self.run_option(option, err_text, fixable=False)
+            errors.append(err)
+
+        # check for ambiguous references from data HDUs
+        hdus = self.get_referrers()
+        index = np.ma.ravel([h.get_corrindx(flatten=True) for h in hdus])
+        index = index[~index.mask]
+        if len(np.unique(index)) < len(index):
+            err_text = f"Different data refer to same OI_CORR matrix element"
+            err = self.run_option(option, err_text, fixable=False)
+            errors.append(err)
+        
+        # check for matrix elements not referred to
+        unref = [i not in index for i in np.unique([self.IINDX, self.JINDX])]
+        if len(unref):
+            err_text = f"OI_CORR matrix element(s) not referred to by any data"
+            fix_text = f"Removed element(s)"
+            keep = ~np.in1d(self.IINDX, unref) & ~np.in1d(self.JINDX, unref)
+            def fix(h=self):
+                h.data = h.data[keep]
+            err = self.run_option(option, err_text, fix_text, fix)
+            errors.append(err)
 
         return errors
 
@@ -82,12 +160,14 @@ class _CorrHDU(_MustHaveCorrHDU,_Referenced):
 
     @classmethod
     def from_data(cls, *, corrname, corrmatrix, fits_keywords={}, **columns):
+    
+        from scipy import sparse
 
         fits_keywords = dict(corrname=corrname, **fits_keywords)
 
         # find non-zero elements in the lower triangle, note that
         # indices start at one in OIFITS        
-        iindx, jindx, corr = _sparse.find(corrmatrix)
+        iindx, jindx, corr = sparse.find(corrmatrix)
         keep = iindx < jindx
         corr = corr[keep]
         iindx = iindx[keep]

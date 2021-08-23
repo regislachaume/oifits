@@ -1,9 +1,11 @@
+import numpy as np
+
 from .data import _DataHDU11, _DataHDU22
 from .t2 import _T2HDU
 from .wavelength import _NW
-from .. import utils as _u
+from .. import utils as u
 
-import numpy as np
+__all__ = ["VisHDU1", "VisHDU2", "new_vis_hdu"]
 
 class _VisHDU(_T2HDU):
     """
@@ -145,7 +147,7 @@ First revision of the OI_VIS binary table, OIFITS v. 1.
     """
     pass
 
-_spos = _u.is_strictpos
+_spos = u.is_strictpos
 
 class VisHDU2(
         _VisHDU,
@@ -159,7 +161,7 @@ Second revision of the OI_VIS binary table, OIFITS v. 2.
     _COLUMNS = [
         ('CORRINDX_VISAMP',  False, '1J', (),        _spos, None, None,
             'index on 1st amp. in matching OI_CORR matrix'), 
-        ('CORRINDEX_VISPHI', False, '1J', (),        _spos, None, None,
+        ('CORRINDX_VISPHI',  False, '1J', (),        _spos, None, None,
             'index on 1st phase in matching OI_CORR matrix'),
         ('RVIS',             False, 'D', (_NW,),     None,  None, 'any', 
             'real part of correlated flux'),                     
@@ -171,20 +173,20 @@ Second revision of the OI_VIS binary table, OIFITS v. 2.
             'uncertainty on imag. part of correlated flux'),
         ('CORRINDX_RVIS',    False, '1J', (),        _spos, None, None,
             'index of 1st RVIS in matching OI_CORR matrix'),
-        ('CORRINDEX_IVIS',   False, '1J', (),        _spos, None, None,
+        ('CORRINDX_IVIS',    False, '1J', (),        _spos, None, None,
             'index of 1st IVIS in matching OI_CORR matrix'),
         ('VISREFMAP',        False, 'L', (_NW,_NW,), None,  None, None,
             'reference channels for differential quantities'),
     ]
     
     _CARDS = [
-        ('AMPTYP',   False, _u.is_amptyp2,  None, 
+        ('AMPTYP',   False, u.is_amptyp2,  None, 
             'amplitude type'),
-        ('PHITYP',   False, _u.is_phityp2,  None, 
+        ('PHITYP',   False, u.is_phityp2,  None, 
             'phase is absolute or differential'),
-        ('AMPORDER', False, _u.is_posint, 0, 
+        ('AMPORDER', False, u.is_posint, 0, 
             'polynomial order in diff. amplitude'),
-        ('PHIORDER', False, _u.is_posint, 0, 
+        ('PHIORDER', False, u.is_posint, 0, 
             'polynomial order in diff. phase'),
     ]
     

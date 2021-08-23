@@ -1,12 +1,13 @@
-from astropy.io.fits.hdu import base as _fitsbase
-from astropy.io import fits as _fits
-from .. import utils as _u
-import copy as _copy
+from astropy.io import fits
 import warnings
+
+from .. import utils as u
+
+__all__ = []
 
 # All Valid HDUs for OIFITS will inherit a _CARDS structured array
 # describing the specific FITS keywords in the header
-_InheritCardDescription = _u.InheritConstantArray(
+_InheritCardDescription = u.InheritConstantArray(
     '_CARDS',
     dtype=[
         ('name', 'U32'),     # keyword name
@@ -19,7 +20,7 @@ _InheritCardDescription = _u.InheritConstantArray(
 
 class _ValidHDU(
     _InheritCardDescription,
-    _fitsbase._ValidHDU
+    fits.hdu.base._ValidHDU,
 ):
 
     def copy(self):
@@ -77,11 +78,11 @@ and header are copied.
 
         # A OIFITS primary HDU comes first, then a FITS primary HDU,
         # then an OIFITS extension, and last other FITS extensions.
-        if (isinstance(self, _fits.PrimaryHDU) or
+        if (isinstance(self, fits.PrimaryHDU) or
             not isinstance(other, _ValidHDU)):
             return True
         
-        if isinstance(other, _fits.PrimaryHDU):
+        if isinstance(other, fits.PrimaryHDU):
             return False
 
         # OIFITS extensions will be ordered by type first

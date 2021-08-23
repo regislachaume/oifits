@@ -231,3 +231,9 @@ Bug fixes
 ** `verify()` now replaces zero and negative `TARGET_ID` instead of throwing an error
 ** `verify()` now masks values and errors (with NULL=NaN) when errors are strictly negative or NULL
 ** primary header of single-target observations deduces more keywords from data HDUs (`BASE_MIN`, `VIS2ERR`, `NUM_CHAN`, etc.)
+
+### 0.4.10
+* New functions
+** `new_primary_header` to create a primary header
+* Bug fixes
+** `verify()` now replaces zero and negative `STA_INDEX` for OITITS2.

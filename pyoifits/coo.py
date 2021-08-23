@@ -2,6 +2,8 @@ from numpy import isnan, cos, sin
 import astropy.units as u
 from astropy.coordinates import AltAz
 
+__all__ = []
+
 def altaz_frame(location, *, obswl, refraction=False):
     """
 

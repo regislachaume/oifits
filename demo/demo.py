@@ -9,4 +9,4 @@ import pyoifits as oifits
 
 # OIFITS version 2 from GRAVITY @ VLTI
 gravity = oifits.open('introfiles/gravity-1.fits')
-pionier = oifits.open('introfiles/pionier-1.fits')
+# pionier = oifits.open('introfiles/pionier-1.fits')

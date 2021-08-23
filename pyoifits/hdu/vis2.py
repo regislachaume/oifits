@@ -1,9 +1,9 @@
 from .data import _DataHDU11, _DataHDU22
 from .t2 import _T2HDU
-from .. import utils as _u
+from .. import utils as u
 from .wavelength import _NW
 
-import numpy as _np
+__all__ = ["Vis2HDU1", "Vis2HDU2", "new_vis2_hdu"]
 
 class _Vis2HDU(_T2HDU):
     """
@@ -116,7 +116,7 @@ Second revision of the OI_VIS2 binary table, OIFITS v. 2
 
     """
     _COLUMNS = [
-        ('CORRINDX_VIS2DATA', False, '1J', (), _u.is_strictpos, None, None,
+        ('CORRINDX_VIS2DATA', False, '1J', (), u.is_strictpos, None, None,
             'index of 1st visib. in matching OI_CORR matrix'),
     ]
 

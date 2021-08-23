@@ -1,23 +1,23 @@
-from .base import _ValidHDU, _OIFITS1HDU, _OIFITS2HDU
-from .. import utils as _u
+from astropy.io import fits as fits
+import numpy as np
 
-from astropy.io import fits as _fits
-from astropy.time import Time as _Time
-import numpy as _np
-import re as _re
-            
+from .base import _ValidHDU, _OIFITS1HDU, _OIFITS2HDU
+from .. import utils as u
+       
+__all__ = ["PrimaryHDU1", "PrimaryHDU2", "new_primary_hdu"]
+     
 # mean of medians, where X = [x1, ..., xn]
 # testing > 0 also exclude NULL values (NaNs)
 
 def _mean_med(X):
     X = [x_ok for x in X if len(x_ok := x[x>0])]
     if X:
-        return _np.mean([_np.ma.median(x) for x in X])
+        return np.mean([np.ma.median(x) for x in X])
 
 
 class _PrimaryHDU(
         _ValidHDU,
-        _fits.PrimaryHDU
+        fits.PrimaryHDU
       ):
 
     def __repr__(self):
@@ -35,14 +35,14 @@ class _PrimaryHDU(
         if cards is None or 'CONTENT' not in cards['name']:
             return NotImplementedError
         version = cards[cards['name'] == 'CONTENT']['default'][0]
-        return (_fits.PrimaryHDU.match_header(header) and
+        return (fits.PrimaryHDU.match_header(header) and
                 header.get('CONTENT', 'OIFITS1') == version)
 
     @classmethod
     def __init_subclass__(cls):
         super().__init_subclass__()
         if hasattr(cls, '_CARDS') and 'CONTENT' in cls._CARDS['name']:
-            _fits.hdu.base._BaseHDU.register_hdu(cls)
+            fits.hdu.base._BaseHDU.register_hdu(cls)
 
     def _to_version(self, n):
 
@@ -65,8 +65,11 @@ class _PrimaryHDU(
 
         return hdu
     
-    def __init__(self, data=None, header=_fits.Header(), keywords={}):
-       
+    def __init__(self, data=None, header=None, keywords={}):
+      
+        if header is None:
+            header = fits.Header()
+
         keywords = {k.upper(): v for k, v in keywords.items() if v is not None}
 
         if 'content' in keywords:
@@ -95,6 +98,8 @@ class _PrimaryHDU(
 
     def _update_header(self):
 
+        from astropy.time import Time
+
         cont = self.get_container()
         if not cont:
             return
@@ -114,8 +119,8 @@ class _PrimaryHDU(
         # fix dates
         mjdobs = min(h.MJD.min() for h in datahdus)
         mjdend = max(h.MJD.max() for h in datahdus)
-        header['DATE-OBS'] = _Time(mjdobs, format='mjd').isot[0:19]
-        header['DATE'] = _Time.now().isot[0:19]
+        header['DATE-OBS'] = Time(mjdobs, format='mjd').isot[0:19]
+        header['DATE'] = Time.now().isot[0:19]
 
         # single target    
         if len(targets) == 1:
@@ -162,20 +167,20 @@ class PrimaryHDU1(
       ):
 
     _CARDS = [
-        ('CONTENT',  False, _u.is_oifits1,   'OIFITS1', 'format by Pauls et al. (2005), PASP 117,1125'),
-        ('TELESCOP', False, _u.is_nonempty,     'N/A',  'name of the telescope array'),
-        ('INSTRUME', False, _u.is_nonempty,     'N/A',  'name of the interferometric instrument'),
-        ('ORIGIN',   False, _u.is_nonempty,     'N/A',  'institution responsible of file creation'),
-        ('OBSERVER', False, _u.is_nonempty,     'N/A',  'person who took the data'),
-        ('OBJECT',   False,  _u.is_nonempty,    'N/A',  'target designation'),
-        ('DATE',     False, _u.is_date,         'N/A',  'date the HDU was written'),
-        ('DATE-OBS', False, _u.is_date,         'N/A',  'date of start of the observations'),
-        ('RA',       False, _u.is_num,           None,  'right ascension (deg)'),
-        ('DEC',      False, _u.is_num,           None,  'declination (deg)'),
-        ('EQUINOX',  False, _u.is_num,           2000., 'equinox (yr)'),
-        ('RADECSYS', False, _u.is_nonempty,     'ICRS', 'celestial coordinate frame'),
-        ('MJD-OBS',  False, _u.is_num,           None, 'MJD at start of observation (d)'),
-        ('MJD-END',  False, _u.is_num,           None, 'MJD at end of observation (d)'),
+        ('CONTENT',  False, u.is_oifits1,   'OIFITS1', 'format by Pauls et al. (2005), PASP 117,1125'),
+        ('TELESCOP', False, u.is_nonempty,     'N/A',  'name of the telescope array'),
+        ('INSTRUME', False, u.is_nonempty,     'N/A',  'name of the interferometric instrument'),
+        ('ORIGIN',   False, u.is_nonempty,     'N/A',  'institution responsible of file creation'),
+        ('OBSERVER', False, u.is_nonempty,     'N/A',  'person who took the data'),
+        ('OBJECT',   False,  u.is_nonempty,    'N/A',  'target designation'),
+        ('DATE',     False, u.is_date,         'N/A',  'date the HDU was written'),
+        ('DATE-OBS', False, u.is_date,         'N/A',  'date of start of the observations'),
+        ('RA',       False, u.is_num,           None,  'right ascension (deg)'),
+        ('DEC',      False, u.is_num,           None,  'declination (deg)'),
+        ('EQUINOX',  False, u.is_num,           2000., 'equinox (yr)'),
+        ('RADECSYS', False, u.is_nonempty,     'ICRS', 'celestial coordinate frame'),
+        ('MJD-OBS',  False, u.is_num,           None, 'MJD at start of observation (d)'),
+        ('MJD-END',  False, u.is_num,           None, 'MJD at end of observation (d)'),
     ]
 
 
@@ -185,40 +190,42 @@ class PrimaryHDU2(
       ):
 
     _CARDS = [
-        ('CONTENT',  True,  _u.is_oifits2,       'OIFITS2', 'format by Duvert et al. (2017), A&A 597, A8'),
-        ('TELESCOP', True,  _u.is_nonempty,      'N/A', 'name of the telescope array'),
-        ('INSTRUME', True,  _u.is_nonempty,      'N/A', 'name of the interferometric instrument'),
-        ('ORIGIN',   True,  _u.is_nonempty,      'N/A', 'institution responsible of file creation'),
-        ('OBSERVER', True,  _u.is_nonempty,      'N/A', 'person who took the data'),
-        ('OBJECT',   True,  _u.is_nonempty,      'N/A', 'astronomical object'),
-        ('DATE',     True,  _u.is_date,          'N/A', 'date the HDU was written'),
-        ('DATE-OBS', True,  _u.is_date,          'N/A', 'date of start of the observations'),
-        ('RA',       False, _u.is_num,           None,  'right ascension (deg)'),
-        ('DEC',      False, _u.is_num,           None,  'declination (deg)'),
-        ('EQUINOX',  False, _u.is_num,           2000., 'equinox (yr)'),
-        ('RADECSYS', False, _u.is_nonempty,     'ICRS', 'celestial coordinate frame'),
-        ('MJD-OBS',  False, _u.is_num,           None, 'MJD at start of observation (d)'),
-        ('MJD-END',  False, _u.is_num,           None, 'MJD at end of observation (d)'),
+        ('CONTENT',  True,  u.is_oifits2,       'OIFITS2', 'format by Duvert et al. (2017), A&A 597, A8'),
+        ('TELESCOP', True,  u.is_nonempty,      'N/A', 'name of the telescope array'),
+        ('INSTRUME', True,  u.is_nonempty,      'N/A', 'name of the interferometric instrument'),
+        ('ORIGIN',   True,  u.is_nonempty,      'N/A', 'institution responsible of file creation'),
+        ('OBSERVER', True,  u.is_nonempty,      'N/A', 'person who took the data'),
+        ('OBJECT',   True,  u.is_nonempty,      'N/A', 'astronomical object'),
+        ('DATE',     True,  u.is_date,          'N/A', 'date the HDU was written'),
+        ('DATE-OBS', True,  u.is_date,          'N/A', 'date of start of the observations'),
+        ('RA',       False, u.is_num,           None,  'right ascension (deg)'),
+        ('DEC',      False, u.is_num,           None,  'declination (deg)'),
+        ('EQUINOX',  False, u.is_num,           2000., 'equinox (yr)'),
+        ('RADECSYS', False, u.is_nonempty,     'ICRS', 'celestial coordinate frame'),
+        ('MJD-OBS',  False, u.is_num,           None, 'MJD at start of observation (d)'),
+        ('MJD-END',  False, u.is_num,           None, 'MJD at end of observation (d)'),
 
-        ('INSMODE',  True,  _u.is_nonempty,      'N/A', 'instrument mode'),
-        ('REFERENC', False, _u.is_nonempty,      'N/A', 'bibliographic reference'),
-        ('PROG_ID',  False, _u.is_nonempty,      'N/A', 'observing programme ID'),
-        ('PROCSOFT', False, _u.is_nonempty,      'N/A', 'data processing software'),
-        ('OBSTECH',  False, _u.is_nonempty,      'N/A', 'beam recombination technique'),
-        ('SPECSYS',  False, _u.is_nonempty,      None,  'reference frame for spectral coord.'),
-        ('TEXPTIME', False, _u.is_strictpos,     None, 'ellapsed time during observation (s)'),
-        ('BASE_MIN', False, _u.is_strictposnum,  None, 'minimum baseline length (m)'),
-        ('BASE_MAX', False, _u.is_strictposnum,  None, 'maximum baseline length (m)'),
-        ('WAVELMIN', False, _u.is_strictposnum,  None, 'minimum wavelength (m)'),
-        ('WAVELMAX', False, _u.is_strictposnum,  None, 'maximum wavelength (m)'),
-        ('NUM_CHAN', False, _u.is_strictposint,  None, 'number of spectral channels'),
-        ('SPEC_RES', False, _u.is_strictposnum,  None, 'spectral resolution'),
-        ('VIS2ERR',  False, _u.is_strictposnum,  None, 'typ. uncertainty in squared vis. amp. (%)'),
-        ('VISPHERR', False, _u.is_strictposnum,  None, 'typ. uncertainty in phases (deg)'),
-        ('T3PHIERR', False, _u.is_strictposnum,  None, 'typ. uncertainty in closure phases (deg)'),
+        ('INSMODE',  True,  u.is_nonempty,      'N/A', 'instrument mode'),
+        ('REFERENC', False, u.is_nonempty,      'N/A', 'bibliographic reference'),
+        ('PROG_ID',  False, u.is_nonempty,      'N/A', 'observing programme ID'),
+        ('PROCSOFT', False, u.is_nonempty,      'N/A', 'data processing software'),
+        ('OBSTECH',  False, u.is_nonempty,      'N/A', 'beam recombination technique'),
+        ('SPECSYS',  False, u.is_nonempty,      None,  'reference frame for spectral coord.'),
+        ('TEXPTIME', False, u.is_strictpos,     None, 'ellapsed time during observation (s)'),
+        ('BASE_MIN', False, u.is_strictposnum,  None, 'minimum baseline length (m)'),
+        ('BASE_MAX', False, u.is_strictposnum,  None, 'maximum baseline length (m)'),
+        ('WAVELMIN', False, u.is_strictposnum,  None, 'minimum wavelength (m)'),
+        ('WAVELMAX', False, u.is_strictposnum,  None, 'maximum wavelength (m)'),
+        ('NUM_CHAN', False, u.is_strictposint,  None, 'number of spectral channels'),
+        ('SPEC_RES', False, u.is_strictposnum,  None, 'spectral resolution'),
+        ('VIS2ERR',  False, u.is_strictposnum,  None, 'typ. uncertainty in squared vis. amp. (%)'),
+        ('VISPHERR', False, u.is_strictposnum,  None, 'typ. uncertainty in phases (deg)'),
+        ('T3PHIERR', False, u.is_strictposnum,  None, 'typ. uncertainty in closure phases (deg)'),
     ]
 
     def _update_header(self):
+
+        import re
 
         super()._update_header()
         
@@ -246,13 +253,13 @@ class PrimaryHDU2(
 
                 w = wavehdus[0]
                 header['NUM_CHAN'] = len(w.data)
-                res = _np.mean(w.EFF_WAVE / w.EFF_BAND)
+                res = np.mean(w.EFF_WAVE / w.EFF_BAND)
                 header['SPEC_RES'] = round(res, 1)
 
             # baselines
 
             uv2 = [d.get_uv() ** 2 for d in datahdus]
-            b = _np.hstack([_np.sqrt(x[::2] + x[1::2]).ravel() for x in uv2])
+            b = np.hstack([np.sqrt(x[::2] + x[1::2]).ravel() for x in uv2])
             header['BASE_MIN'] = round(b.min(), 2)
             header['BASE_MAX'] = round(b.max(), 2)
 
@@ -276,7 +283,7 @@ class PrimaryHDU2(
             # TEXPTIME. Should be the same, but because some interferograms
             # get tossed for one observable and not the other, there may
             # be some variations in INT_TIME.  Taking the max, per standard. 
-            t = _np.unique([t for hdu in datahdus for t in hdu.INT_TIME])
+            t = np.unique([t for hdu in datahdus for t in hdu.INT_TIME])
             if t[-1] - t[0] < 0.3 * t[0]:
                 header['TEXPTIME'] = t[-1]
 
@@ -290,17 +297,23 @@ class PrimaryHDU2(
                 if keyw in header:
                     del header[keyw]
 
-        arrnames = _np.unique([n for h in datahdus if (n := h.get_arrname())])
+        arrnames = np.unique([n for h in datahdus if (n := h.get_arrname())])
         header['TELESCOP'] = arrnames[0] if len(arrnames) == 1 else 'MULTI'
         
-        insnames = _np.unique([h.get_insname() for h in datahdus])
+        insnames = np.unique([h.get_insname() for h in datahdus])
        
         # INSTRUME is harder to guess, as there is no norm about how INSNAME is
         # given.   
-        ins = [_re.sub('([A-Za-z]+).*', '\\1', i).upper() for i in insnames]
-        ins = _np.unique(ins)
+        ins = [re.sub('([A-Za-z]+).*', '\\1', i).upper() for i in insnames]
+        ins = np.unique(ins)
         header['INSTRUME'] = ins[0] if len(ins) == 1 else 'MULTI'
 
         # INSMODE 
         header['INSMODE'] = insnames[0] if len(insnames) == 1 else 'MULTI'
 
+def new_primary_hdu(version=2, *, header=None, data=None):
+    cls = _PrimaryHDU.get_class(version=version) 
+    if header is not None:
+        header = header.copy()
+    return cls(data=None, header=None)
+    

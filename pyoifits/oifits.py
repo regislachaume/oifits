@@ -1,37 +1,29 @@
-from astropy.io import fits as _fits
-from astropy import table as _table
-from astropy.time import Time as _Time
-from numpy import ma as _ma
-import numpy as _np
-import scipy.sparse as _sparse
+from astropy.io import fits
+import numpy as np
 
-from matplotlib import pylab as _plt
-
-# TEMP
-import warnings
-from astropy.io.fits.verify import VerifyWarning
-import random
-# /TEMP
-
-from .hdu import *
-from . import utils as _u
-from . import fitsutils as _fu
+from . import hdu
+from . import fitsutils
 
 from .hdu.base import _ValidHDU
 from .hdu.table import _OITableHDU
 from .hdu.data import _DataHDU
-from .hdu.target import _TargetHDU
-from .hdu.array import _ArrayHDU
-from .hdu.t3 import _T3HDU
-from .hdu.vis2 import _Vis2HDU
-from .hdu.vis import _VisHDU
-from .hdu.flux import _FluxHDU
-from .hdu.wavelength import _WavelengthHDU
+from .hdu.target import _TargetHDU, new_target_hdu, new_target_hdu_from_simbad
+from .hdu.array import _ArrayHDU, new_array_hdu
+from .hdu.t3 import _T3HDU, new_t3_hdu
+from .hdu.vis2 import _Vis2HDU, new_vis2_hdu
+from .hdu.vis import _VisHDU, new_vis_hdu
+from .hdu.flux import _FluxHDU, new_flux_hdu
+from .hdu.wavelength import _WavelengthHDU, new_wavelength_hdu
 from .hdu.referenced import _Referenced
 from .hdu.corr import _CorrHDU
 from .hdu.inspol import _InspolHDU
-from .hdu.primary import _PrimaryHDU
+from .hdu.primary import _PrimaryHDU, new_primary_hdu
 
+__all__ = ["OIFITS1", "OIFITS2", "open", "openlist", "merge", 
+           "set_merge_settings", "new_target_hdu", "new_array_hdu",
+            "new_wavelength_hdu", "new_vis_hdu", "new_vis2_hdu",
+            "new_t3_hdu", "new_flux_hdu", "new_target_hdu_from_simbad",
+            "new_primary_hdu"]
 
 def open(filename, mode='readonly', lazy_load_hdus=True, **kwargs):
     """
@@ -49,17 +41,18 @@ lazy_load_hdus (bool, optional, default: True)
     Whether to only load HDUs if needed
 
     """
+    # default if cannot be determined
+    cls = 'OIFITS2'
+    
     # we need to read the primary HDU to see which FITS version it is
-    if mode == 'ostream':
-        cls = OIFITS2
-    else:
-        with _fits.open(filename, lazy_load_hdus=True) as hdulist:
+    if mode != 'ostream':
+        with fits.open(filename, lazy_load_hdus=True) as hdulist:
             if list.__len__(hdulist): # len(h) would load all HDUs
                 content = hdulist[0].header.get('CONTENT', '')
                 cls = OIFITS2 if content == 'OIFITS2' else OIFITS1
-            else:
-                cls = OIFITS2
+
     hdus = cls.fromfile(filename, lazy_load_hdus=lazy_load_hdus, **kwargs)
+
     return hdus
 
 def openlist(filenames):
@@ -100,7 +93,7 @@ def _merge(*hdulists, _inplace=False):
     # We order them by newest version first.
 
     oiver = [getattr(hdulist, '_OI_VER', 0) for hdulist in hdulists]
-    order = _np.argsort(oiver)[::-1]
+    order = np.argsort(oiver)[::-1]
     hdulists = [hdulists[o] for o in order]
     
     
@@ -158,17 +151,20 @@ def _merge(*hdulists, _inplace=False):
     return merged
 
 def _process_primaryHDUs(hdus):
+
+    from .fitsutils import merge_fits_headers
     
     # merge primary headers of OIFITs primary HDUs 
     headers = [hdu.header for hdu in hdus if isinstance(hdu, _PrimaryHDU)]
-    header = _fu.merge_fits_headers(*headers)
+    header = fitsutils.merge_fits_headers(*headers)
     hdus[0].header = header
+
     # delete void OIFIT Primary headers and convert others to images
     for i in range(len(hdus)-1, 0, -1):
         hdu = hdus[i]
-        if isinstance(hdu, _fits.PrimaryHDU):
+        if isinstance(hdu, fits.PrimaryHDU):
             if hdu.data is not None:
-                hdus[i] = _fits.ImageHDU(hdu)
+                hdus[i] = fits.ImageHDU(hdu)
             else:
                 del hdus[i]
        
@@ -186,6 +182,8 @@ def _remove_equal_OITableHDUs(hdus, cls=_OITableHDU):
 
 def _rename_conflicting_OITableHDUs(hdus, cls=_Referenced):
 
+    from .utils import SequentialName
+
     for i, hdu1 in enumerate(hdus):
 
         if not isinstance(hdu1, cls):
@@ -201,11 +199,11 @@ def _rename_conflicting_OITableHDUs(hdus, cls=_Referenced):
 
         hdus2 = hdus[i + 1:]
         
-        refname1 = _u.SequentialName(hdu1.header[refkey])
+        refname1 = SequentialName(hdu1.header[refkey])
         refhdus2 = [hdu2 for hdu2 in hdus2 if hdu2 & hdu1]
-        refnames2 = [_u.SequentialName(h.header[refkey]) for h in refhdus2] 
+        refnames2 = [SequentialName(h.header[refkey]) for h in refhdus2] 
         equal = [refname1 == refname2 for refname2 in refnames2]
-        indices = _np.argwhere(equal)[:,0]
+        indices = np.argwhere(equal)[:,0]
         nequal = len(indices)
         if not nequal:
             continue
@@ -220,26 +218,9 @@ def _rename_conflicting_OITableHDUs(hdus, cls=_Referenced):
 
         for index in indices:
 
-            #refname2 = refnames2[index]
             refhdu2 = refhdus2[index]
             new_refname2 = str(new_refnames2.pop(0))
             refhdu2.rename(new_refname2)
-
-            #container = refhdu2.get_container()
-            #if not container:
-            #    continue
-        
-            #referrers = container.get_referrers(refhdu2)
-            #for h in referrers:
-            #    h.header[refkey] = new_refname2
-            #
-            #refhdu2.header[refkey] = new_refname2
-            #
-            #if refkey == 'INSNAME':
-            #    for h in container.getInspolHDU():
-            #        insname = h.data['INSNAME'] 
-            #        h.data['INSNAME'][insname == refname2] = new_refname2
-
 
 def _merge_OITableHDUs(hdus, cls=_OITableHDU):
 
@@ -253,14 +234,14 @@ def _merge_OITableHDUs(hdus, cls=_OITableHDU):
         # Find all mergeable HDUs, merge them 
         nhdu = len(hdus)
         is_mergeable = [hdus[k] % hdu if k > i else False for k in range(nhdu)]
-        where_mergeable = _np.argwhere(is_mergeable)[:,0]
+        where_mergeable = np.argwhere(is_mergeable)[:,0]
         if len(where_mergeable):
             mergeable = [hdus[m] for m in where_mergeable]
             hdus[i] = hdus[i].merge(*mergeable)
             for j in where_mergeable[::-1]:
                 del hdus[j]
    
-class _OIFITS(_fits.HDUList):
+class _OIFITS(fits.HDUList):
 
     _merge_station_distance = 0.1    # 0.1 m
     _merge_array_distance = 10       # 10 m
@@ -330,6 +311,8 @@ target_name_match (bool, default: False)
 
     def verify(self, option='warn'):
 
+        import warnings
+
         with warnings.catch_warnings():
             warnings.simplefilter('always')
             super().verify(option=option)
@@ -338,8 +321,23 @@ target_name_match (bool, default: False)
 
         errors = super()._verify(option) 
       
-        clsname = type(self).__name__
- 
+        name = f"{type(self).__name__} ({hex(id(self))})"
+
+        # check cross-references
+        for hdu in [*self.get_dataHDUs(), *self.get_inspolHDUs()]:
+
+            arrname = hdu.header.get('ARRNAME', None)
+            if self.get_arrayHDU(arrname) is None:
+                err_text = f'OI_ARRAY with ARRNAME={arrname} not found'
+                err = sef.run_option(option, err_text=err_text, fixable=False)
+                errors.append(err)
+
+            insname = hdu.header.get('INSNAME', None)
+            if self.get_wavelengthHDU(insname) is None:
+                err_text = f'OI_WAVELENGTH with INSNAME={insname} not found'
+                err = sef.run_option(option, err_text=err_text, fixable=False)
+                errors.append(err)
+
         # check OI extensions are valid names and fit the OIFITS version
         for hdu in self[1:]:
             
@@ -347,7 +345,7 @@ target_name_match (bool, default: False)
             extrevn = hdu.header.get('OI_REVN', 0)
             
             if extname[0:3] == 'OI_' and not isinstance(hdu, _OITableHDU):
-                err_text = f"Invalid OIFITS extention: {extname} in {clsname} ({hex(id(self))})"
+                err_text = f"Invalid OIFITS extention: {extname} in {name}"
                 fix_text = "Replaced underscore by dash"
                 def fix(hdu=hdu):
                     hdu.header['EXTNAME'] = 'OI-' + extname[3:]
@@ -356,7 +354,7 @@ target_name_match (bool, default: False)
                 errors.append(err)
               
             if hdu._OI_VER != self._OI_VER: 
-                err_text = f"Extension {extname} rev. {extrevn} in {clsname} ({hex(id(self))}"
+                err_text = f"Extension {extname} rev. {extrevn} in {name}"
                 err = self.run_option(option, err_text=err_text, fixable=False) 
                 errors.append(err)
        
@@ -382,7 +380,7 @@ a. (UCOORD, VCOORD) can be averaged independently from MJD
 b. Atmospheric refraction is dealt with approximately, while (UCOORD,
    VCOORD) may have none to full modelling of the atmosphere.
 
-For the VLTI, the difference amount to 0.1-0.2% error on baselines
+For the VLTI, the differences amount to 0.1-0.2% error on baselines
 (a few centimetres).
 
         """
@@ -396,25 +394,42 @@ Get all HDUs of a given extension type matching given criteria
 Arguments
 ---------
 
-exttype (type)
-    Extension type
+exttype (type or str)
+    Class of the extension or string with the extension name (e.g.
+    OI_VIS2, OI_WAVELENGTH)
 filter (func)
     Function taking an extension object and returning either True or 
     False
 
         """
-        hdus = [h for h in self[1:] if isinstance(h, exttype)]
-        
+        if isinstance(type(exttype), type):
+            hdus = [h for h in self[1:] if isinstance(h, exttype)]
+        elif isinstance(exttype, str):
+            hdus = [h for h in self[1:] if h.header['extname'] == h]
+        else:
+            raise NotImplementedError('')
+
         if filter is not None:
             hdus = [h for h in hdus if filter(h)]
 
         return hdus
-    
-    def get_dataHDUs(self, /, filter=None):
+   
+    def get_tableHDUs(self, filter=None):
+        """
+Get all HDUs containing an OI binary table
+        """
+        return self.get_HDUs(_OITableHDU, filter=filter)
+        
+ 
+    def get_dataHDUs(self, filter=None):
         """
 Get all HDUs containing optical interferometry data.  
 
 Keyword arguments
+-----------------
+
+filter
+    Function taking an HDU and returning True/False.
 
         """
         return self.get_HDUs(_DataHDU, filter)
@@ -439,11 +454,6 @@ filter (func)
             return None
         return hdus[0]
 
-    def get_OITableHDUs(self):
-        """
-Get all HDUs containing an OI binary table
-        """
-        return self.get_HDUs(_OITableHDU)
 
     def get_arrayHDUs(self):
         return self.get_HDUs(_ArrayHDU)
@@ -462,23 +472,23 @@ arrname (str)
         def same_arrname(h): return h.get_arrname() == arrname
         return self.get_HDU(_ArrayHDU, same_arrname)
     
-    def get_vis2HDUs(self):
+    def get_vis2HDUs(self, filter=None):
         """
 Get the HDUs containing square visibility amplitude data
         """
-        return self.get_HDUs(_Vis2HDU)
+        return self.get_HDUs(_Vis2HDU, filter=filter)
     
-    def get_visHDUs(self):
+    def get_visHDUs(self, filter=None):
         """
 Get the HDUs containing square visibility data
         """
-        return self.get_HDUs(_VisHDU)
+        return self.get_HDUs(_VisHDU, filter=filter)
     
-    def get_t3HDUs(self):
+    def get_t3HDUs(self, filter=None):
         """
 Get the HDUs containing closure (3T) data
         """
-        return self.get_HDUs(_T3HDU)
+        return self.get_HDUs(_T3HDU, filter=filter)
 
     def get_targetHDU(self):
         """
@@ -486,7 +496,10 @@ Get the HDU containing target information (OI_TARGET)
         """
         return self.get_HDU(_TargetHDU) 
 
-    def get_fluxHDUs(self):
+    def get_fluxHDUs(self, filter=None):
+        """
+Get the HDUs containing flux information (OI_FLUX)
+        """
         return self.get_HDUs(_FluxHDU)
 
     def get_wavelengthHDUs(self):
@@ -552,6 +565,10 @@ arrname:
     def _to_table(self, *, correlations=None, remove_masked=False,
         **kwargs):
 
+        from astropy import table
+        from scipy import sparse
+        from numpy import ma 
+
         dataHDUs = self.get_dataHDUs()
 
         return_corr = correlations is not None
@@ -560,15 +577,15 @@ arrname:
         tabs = [h._to_table(full_uv=True, correlations=return_corr,
                     remove_masked=remove_masked, **kwargs) for h in dataHDUs]
         colnames = tabs[0].colnames 
-        cols = [_ma.hstack([t[n] for t in tabs]) for n in colnames]
-        tab = _table.Table(cols, names=colnames)
+        cols = [ma.hstack([t[n] for t in tabs]) for n in colnames]
+        tab = table.Table(cols, names=colnames)
         for name in colnames:
             tab.columns[name].format = tabs[0].columns[name].format
         
         if not return_corr:
             return tab
 
-        corr = _sparse.identity(len(tab), format='dok') 
+        corr = sparse.identity(len(tab), format='dok') 
 
         # treat each OI_CORR separately, then look up indices
         # in the full table
@@ -595,19 +612,9 @@ arrname:
 
         tab.remove_columns(['CORRNAME', 'CORRINDX'])
 
-        if correlations == 'csr':
-            corr = corr.tocsr()
-        elif correlations == 'csc':
-            corr = corr.tocsc()
-        elif correlations == 'coo':
-            corr = corr.tocoo()
-        elif correlations == 'numpy':
-            corr = corr.toarray()
-        elif correlations == 'matrix':
-            corr = corr.todense()
-        elif correlations == 'dok':
-            pass
-        else:
+        try:
+            corr = getattr(corr, 'to' + correlations)()
+        except AttributeError:
             raise ValueError(f"wrong correlation matrix format: {correlations}")
 
         return tab, corr
@@ -790,7 +797,7 @@ While certainly unused by applications, this is a requirement of the
 FITS standard.
 
         """
-        extnames = _np.unique(h.header.get('EXTNAME', None) for h in self[1:])
+        extnames = np.unique(h.header.get('EXTNAME', None) for h in self[1:])
         for extname in extnames:
             hdus = [h for h in self[1:] 
                             if h.header.get('EXTNAME', None) == extname]
@@ -890,6 +897,8 @@ fig (matplotlib.figure.Figure)
     A matplotlib figure.
 
         """
+        from matplotlib import pylab 
+
         res = self._plot_helper(xvar, observable, **kwargs)
         (target, inscfg, stacfg, mjd), x, (y, dy) = res
 
@@ -920,21 +929,21 @@ fig (matplotlib.figure.Figure)
         elif color_by == 'mjd':
             subkey = mjd
         else:
-            if len(_np.unique(subkeys[0])) > 1:
+            if len(np.unique(subkeys[0])) > 1:
                 subkey = subkeys[0]
             else:
                 subkey = subkeys[1]
 
-        unique_key, unique_index = _np.unique(key, return_inverse=True)
-        unique_subkey, unique_subindex = _np.unique(subkey, return_inverse=True)
+        unique_key, unique_index = np.unique(key, return_inverse=True)
+        unique_subkey, unique_subindex = np.unique(subkey, return_inverse=True)
         
         if fig is None or isinstance(fig, int):
-            fig = _plt.figure(fig)
+            fig = pylab.figure(fig)
             fig.clf()
         
         naxes = len(unique_key)
-        ny = int(_np.sqrt(2 * naxes))
-        nx = int(_np.ceil(naxes / ny))
+        ny = int(np.sqrt(2 * naxes))
+        nx = int(np.ceil(naxes / ny))
         axes = fig.subplots(ny, nx, sharex=True, sharey=True, squeeze=False)
         
         fig.subplots_adjust(hspace=0, wspace=0)
@@ -973,26 +982,28 @@ fig (matplotlib.figure.Figure)
     # * baseline used in the format 'ARRAY/STATION1-...'
     def _plot_helper(self, xvar, observable,  /, **kwargs):
 
+        from astropy.time import Time
+
         tab = self.to_table(remove_masked=True, observable=observable, **kwargs)
 
         if not tab:
             raise RuntimeError('no data match criteria')
 
         if xvar in ['MJD', 'date', 'time']:
-            x = _Time(tab['MJD'], format='mjd')
+            x = Time(tab['MJD'], format='mjd')
         elif xvar in ['baseline', 'spatial_frequency']:
-            x = _np.zeros_like(tab['MJD'])
+            x = np.zeros_like(tab['MJD'])
             t3 = ~tab['U2COORD'].mask
             t2 = ~tab['U1COORD'].mask & ~t3 
             u1, v1 = tab['U1COORD'][t2], tab['V1COORD'][t2]
-            b1 = _np.sqrt(u1 ** 2 + v1 ** 2)
+            b1 = np.sqrt(u1 ** 2 + v1 ** 2)
             x[t2] = b1
             u1, v1 = tab['U1COORD'][t3], tab['V1COORD'][t3]
             u2, v2 = tab['U2COORD'][t3], tab['V2COORD'][t3]
             u3, v3 = -u1-u2, -v1-v2
-            b1 = _np.sqrt(u1 ** 2 + v1 ** 2)
-            b2 = _np.sqrt(u2 ** 2 + v2 ** 2)
-            b3 = _np.sqrt(u3 ** 2 + v3 ** 2)
+            b1 = np.sqrt(u1 ** 2 + v1 ** 2)
+            b2 = np.sqrt(u2 ** 2 + v2 ** 2)
+            b3 = np.sqrt(u3 ** 2 + v3 ** 2)
             x[t3] = abs(b1 * b2 * b3) ** (1/3)
             if xvar == 'spatial_frequency':
                 x /= tab['EFF_WAVE']
@@ -1000,18 +1011,18 @@ fig (matplotlib.figure.Figure)
             choices = 'MJD, date, time, baseline, or spatial_frequency'
             raise NotImplementedError(f"x variable must be {choices}")
 
-        if not isinstance(x, _Time):
-            x = _np.asarray(x)
-        y = _np.asarray(tab['value'])
-        dy = _np.asarray(tab['error'])
+        if not isinstance(x, Time):
+            x = np.asarray(x)
+        y = np.asarray(tab['value'])
+        dy = np.asarray(tab['error'])
         
         arr = tab['ARRNAME'].tolist()
         cfg = tab['STA_CONFIG'].tolist()        
-        stacfg = _np.asarray([f"{a}/{b}" for a, b in zip(arr, cfg)])
-        inscfg = _np.asarray(tab['INSNAME'])        
-        mjd = _np.asarray(tab['MJD'])
+        stacfg = np.asarray([f"{a}/{b}" for a, b in zip(arr, cfg)])
+        inscfg = np.asarray(tab['INSNAME'])        
+        mjd = np.asarray(tab['MJD'])
 
-        target = _np.asarray(tab['TARGET'])
+        target = np.asarray(tab['TARGET'])
 
         return (target, inscfg, stacfg, mjd), x, (y, dy) 
  
@@ -1028,7 +1039,7 @@ Insert an OI_ARRAY extension to an OIFITS.
 Arguments:
 ----------
 
-ahdu (ArrayHDU1):
+ahdu:
     OI_ARRAY extension
 
 dataHDUs (list of HDUs):
@@ -1111,7 +1122,23 @@ tab (astropy.table.Table)
 
 class OIFITS2(_OIFITS):
     """Top-level class of Optical Interferometry FITS format, version 2."""
+    
     _OI_VER = 2
+
+    def _verify(self, option='warn'):
+
+        errors = super()._verify(option)
+
+        # check cross-references
+        for hdu in self.get_dataHDUs():
+
+            corrname = hdu.header.get('CORRNAME', None)
+            if corrname and self.get_corrHDU(corrname) is None:
+                err_text = f'OI_CORR with CORRNAME={corrname} not found'
+                err = sef.run_option(option, err_text=err_text, fixable=False)
+                errors.append(err)
+
+        return errors
     
     def to_table(self, /, *, correlations=None, remove_masked=False, **kwargs):
         """
@@ -1126,13 +1153,13 @@ Arguments
 
 correlations (bool, default: None)
     Type of correlation matrix
-    * None: no matrix is return
-    * 'numpy': numpy 2D array
-    * 'matrix': numpy matrix
-    * 'dok': scipy.sparse matrix in dictionary of keys format
-    * 'csc': scipy.sparse matrix in compressed sparse column format
-    * 'csr': scipy.sparse matrix in compressed sparse row format
-    * 'coo': scipy.sparse matrix in coordinate format
+    * None: no matrix is returned
+    * 'array': numpy array
+    * 'dense': numpy dense matrix
+    * 'dok': scipy.sparse matrix in Dictionary Of Keys format
+    * 'csc': scipy.sparse matrix in Compressed Sparse Column format
+    * 'csr': scipy.sparse matrix in Compressed Sparse Row format
+    * 'coo': scipy.sparse matrix in COOrdinate format
 
 remove_masked (bool, default: False)
     Remove masked values.
@@ -1164,20 +1191,18 @@ wavelmin (default: 0)
 wavelmax (default: +inf)
     Maximum wavelength
 
-
-
 Returns
 -------
 
 tab (astropy.table.Table)
-    A table with one scalar observable per line.
+    table with one scalar observable per line
 
-corr (scipy.sparse.dok_matrix, optional)
-    Sparse correlation matrix in a dictionary of keys format
+corr (a matrix, optional)
+    sparse correlation matrix 
 
         """
         return self._to_table(correlations=correlations, 
                             remove_masked=remove_masked, **kwargs)
 
-
 set_merge_settings = _OIFITS.set_merge_settings
+

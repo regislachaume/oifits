@@ -3,6 +3,8 @@ from astropy.io import fits
 import re
 from scipy.spatial.transform import Rotation
 
+__all__ = []
+
 class SequentialName(object):
 
     def __init__(self, s, n=1):
@@ -64,7 +66,6 @@ def InheritConstantArray(varname, dtype=None):
     basename = f"_InheritConstantArray{varname}"
     
     def init_subclass(cls):
-
 
         # it seems __class__ won't work here.  I don't understand magic.
         allbases = cls.mro()

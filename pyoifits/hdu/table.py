@@ -1,15 +1,17 @@
-from .. import utils as _u
-from .. import fitsutils as _fu
+from astropy.io import fits
+import numpy as np 
 
 from .base import _ValidHDU, _OIFITS1HDU, _OIFITS2HDU
 
-from astropy.io import fits as _fits
-import numpy as _np 
-import re as _re
+from .. import utils as u
+from .. import fitsutils as fu
+
+__all__ = []
 
 # All OIFITS tables will inherit a _COLUMNS structured array describing
 # the columns specified in the standard
-_InheritColumnDescription = _u.InheritConstantArray(
+
+_InheritColumnDescription = u.InheritConstantArray(
     '_COLUMNS',
     dtype=[
         ('name', 'U32'),     # TTYPEn (column name, e.g. VIS2DATA)
@@ -29,7 +31,7 @@ _InheritColumnDescription = _u.InheritConstantArray(
 
 class _OITableHDU(
          _ValidHDU,
-         _fits.BinTableHDU,
+         fits.BinTableHDU,
          _InheritColumnDescription,
       ):
 
@@ -37,7 +39,7 @@ class _OITableHDU(
 
     def __init__(self, data=None, header=None, uint=False, ver=None, 
                     character_as_bytes=False):
-        _fits.BinTableHDU.__init__(self, data=data, header=header, uint=uint,
+        fits.BinTableHDU.__init__(self, data=data, header=header, uint=uint,
                     ver=ver, character_as_bytes=character_as_bytes)
 
     def update(self):
@@ -103,7 +105,7 @@ class _OITableHDU(
 
         super().__init_subclass__()
         if getattr(cls, '_EXTNAME', None) and  getattr(cls, '_OI_REVN', None): 
-            _fits.hdu.base._BaseHDU.register_hdu(cls)
+            fits.hdu.base._BaseHDU.register_hdu(cls)
  
     @classmethod
     def match_header(cls, header):
@@ -119,13 +121,13 @@ project.
         if extname is None or oi_revn is None:
             return NotImplementedError
 
-        return (_fits.BinTableHDU.match_header(header) and
+        return (fits.BinTableHDU.match_header(header) and
                 header.get('EXTNAME', '') == extname and
                 header.get('OI_REVN', '') == oi_revn)
 
     def append_lines(self, lines):
       
-        merged_data = _np.hstack([self.data, lines]) 
+        merged_data = np.hstack([self.data, lines]) 
         merged = type(self)(data=merged_data, header=self.header)
 
         return merged
@@ -153,11 +155,11 @@ project.
             ref_values = getattr(refhdu, name)
         xmatch = dict(zip(ref_indices, ref_values))
         indices = getattr(self, refname)
-        shape = indices.shape + _np.shape(ref_values[0])
-        values = _np.reshape([xmatch[i] for i in indices.flatten()], shape)
+        shape = indices.shape + np.shape(ref_values[0])
+        values = np.reshape([xmatch[i] for i in indices.flatten()], shape)
       
         if concatenate:
-            values = [_np.atleast_1d(a) for a in values]
+            values = [np.atleast_1d(a) for a in values]
             values = ['-'.join([str(x) for x in a]) for a in values]
 
         return values
@@ -208,8 +210,8 @@ Syntax: tab.rename_columns(oldname1=newname1, ...)
         # pyfits go look to column names in base class sometimes and it
         # doesn't always get updated.
         base = self.data
-        while (isinstance(base, _fits.FITS_rec) and
-                isinstance(base.base, _np.recarray)):
+        while (isinstance(base, fits.FITS_rec) and
+                isinstance(base.base, np.recarray)):
             base = base.base
         base.dtype = self.data.dtype
                 
@@ -265,9 +267,9 @@ Syntax: tab.rename_columns(oldname1=newname1, ...)
             
             # check dimensionality
             dshape = self.data.dtype[name].shape
-            if _u.NW in shape:
+            if u.NW in shape:
                 nwave = self.get_nwaves()
-                shape = tuple(nwave if d == _u.NW else d for d in shape)
+                shape = tuple(nwave if d == u.NW else d for d in shape)
             if shape != dshape and shape != (1,) and dshape != (): 
                 err_txt = (f"Column {name}: shape is {dshape}, should be "
                            f"{shape} in {loc}.")
@@ -277,13 +279,13 @@ Syntax: tab.rename_columns(oldname1=newname1, ...)
             # Check values
             if test is not None:
                 values = self.data[name]
-                invalid = _np.array([not test(v) for v in _np.nditer(values)])
+                invalid = np.array([not test(v) for v in np.nditer(values)])
                 invalid = invalid.reshape(values.shape)
                 if invalid.any():
                     fixable = default is not None
                     if fixable:
                         try:
-                            default = _np.array(default, dtype=dtype)
+                            default = np.array(default, dtype=dtype)
                             def fix(): values[invalid] = default
                         except:
                             fixable = False
@@ -328,7 +330,7 @@ Syntax: tab.rename_columns(oldname1=newname1, ...)
             if len(coldesc):
                 coldesc = coldesc[0]
                 try:
-                    col = _fu.ascolumn(col, name=coldesc['name'],
+                    col = fu.ascolumn(col, name=coldesc['name'],
                         unit=coldesc['unit'], format=coldesc['format'])
                 except:
                     pass
@@ -349,7 +351,7 @@ the standard.
         if fixed: 
             # astropy.io.fits is a mess.
             #  both .data and .columns must be accessed.
-            self.data = _fits.FITS_rec.from_columns(columns)
+            self.data = fits.FITS_rec.from_columns(columns)
             for col, format in zip(self.columns, self.data.formats):
                 col.format = format
             self.update()
@@ -411,20 +413,20 @@ the standard.
         else:
             raise ValueError(f"shape incorrect: '{shape}'")
 
-        x_shape = _np.shape(x)
+        x_shape = np.shape(x)
         if target_shape:
     
             if not x_shape: # scalar
-                x = _np.full(target_shape, x)
+                x = np.full(target_shape, x)
             elif x_shape[0] == target_shape[0]:
                 if len(target_shape) == 2:
-                    x = _np.full((target_shape[1:] + x_shape), x).swapaxes(0,1)
+                    x = np.full((target_shape[1:] + x_shape), x).swapaxes(0,1)
             else:
                 msg = f"dimension mismatch: {x_shape} and {target_shape}"
                 raise ValueError(msg)
 
             if flatten:
-                target_len = _np.prod(target_shape)
+                target_len = np.prod(target_shape)
                 flat_shape = (target_len, *x.shape[len(target_shape):])
                 x = x.reshape(flat_shape)
 
@@ -487,25 +489,25 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
 
         # Determine class when merging different revisions of a table
         hdus = [self, *others]
-        i_maxrevn = _np.argmax([x._OI_REVN for x in hdus])
+        i_maxrevn = np.argmax([x._OI_REVN for x in hdus])
         cls = type(hdus[i_maxrevn])
 
         # Merged tables will keep all columns.  Values will be zero if not 
         # defined in one of the tables
-        colnames, columns = _fu.merge_columns(*hdus)
+        colnames, columns = fu.merge_columns(*hdus)
 
         # Merge sets of FITS rows.
         # * In each set, rows duplicating one of the previous set is eliminated
         # * For each set a map of old_id -> new_id is built to avoid
         #   duplicate IDs.
         rows = [hdu.data for hdu in hdus]
-        rows, maps = _fu.merge_rows(*rows, id_name=id_name, equality=equality)
+        rows, maps = fu.merge_rows(*rows, id_name=id_name, equality=equality)
         nrows = sum(len(r) for r in rows)
 
         # Merge headers.  
         headers = [hdu.header for hdu in hdus]
         req_keys = cls._CARDS['name'][cls._CARDS['required']]
-        header = _fu.merge_fits_headers(*headers, req_keys=req_keys)
+        header = fu.merge_fits_headers(*headers, req_keys=req_keys)
         
         # Create an empty merged fits with the right number of rows,
         # then fill it.
@@ -532,7 +534,7 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
         # Update in HDUs refering to other
         for hdu, map in zip(hdus, maps):
             if map and (container := getattr(hdu, '_container', None)):
-                for h in container.get_OITableHDUs():
+                for h in container.get_tableHDUs():
                     if h.refers_to(hdu): 
                         field = h.data[id_name]
                         for old, new in map.items():
@@ -573,7 +575,7 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
             if ((name := col['name'] in columns) and
                 (shape := col['shape']) and
                 (value := columns[name]) is not None):
-                shape = _np.shape(value)
+                shape = np.shape(value)
                 return shape
 
         raise RuntimeError('Cannot determine table shape from input')
@@ -585,7 +587,7 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
         if len(obs_names):
             for obs_name in obs_names:
                 if obs_name in columns:
-                    shape = _np.shape(columns[obs_name])
+                    shape = np.shape(columns[obs_name])
                     if len(shape):
                         return shape
             raise RuntimeError('cannot guess shape from data')
@@ -593,7 +595,7 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
         oi_columns = cls._get_oi_columns()
         for name in oi_columns['name']:
             if name in columns:
-                shape = _np.shape(columns[name])
+                shape = np.shape(columns[name])
                 if len(shape):
                     return shape
         raise RuntimeError('cannot guess shape from data')
@@ -613,7 +615,7 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
             cls = cls.get_class(version=version)
 
         # FITS keywords and column names are upper case 
-        if isinstance(fits_keywords, _fits.Header):
+        if isinstance(fits_keywords, fits.Header):
             fits_keywords = {c[0]: c[1:] for c in fits_keywords.cards}
 
         fits_keywords = {k.upper(): v for k, v in fits_keywords.items()
@@ -626,7 +628,7 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
                     for n, v in columns.items()}
  
         # Header
-        header = _fits.Header()
+        header = fits.Header()
         for card in cls._CARDS:
             name = card['name']
             comment = card['comment']
@@ -649,9 +651,9 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
         nrows = shape[0]
         
         def full(s, x):
-            if _np.ndim(x) > len(s):
-                return _np.asarray(x)
-            return _np.full(s, x)
+            if np.ndim(x) > len(s):
+                return np.asarray(x)
+            return np.full(s, x)
 
         # Guess errors from data    
         obs_names = cls.get_observable_names() 
@@ -676,13 +678,13 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
                 new_shape = (nrows,)
             array = full(new_shape, columns[name]) 
             del columns[name]
-            fcol = _fu.ascolumn(array, format=col['format'], unit=col['unit'],
+            fcol = fu.ascolumn(array, format=col['format'], unit=col['unit'],
                 name=name)
             fcols.append(fcol)
 
             # additional columns
         for name, array in columns.items():
-            fcol = _fu.ascolumn(array, name=name)
+            fcol = fu.ascolumn(array, name=name)
             fcols.append(fcol)
         
         tab = super().from_columns(fcols, header=header)
@@ -712,18 +714,18 @@ ID that must be kept unique. equality: criteria to discard redundant rows.
         if len(colnames):
             nobs = len(self.get_observable_names())
             shape = self.data[colnames[0]].shape
-            return _np.prod(shape) * nobs
+            return np.prod(shape) * nobs
 
         return len(self.data) 
 
 class _OITableHDU1(_OITableHDU):
     _OI_REVN = 1
-    _CARDS = [('OI_REVN', True, _u.is_one, 1, 
+    _CARDS = [('OI_REVN', True, u.is_one, 1, 
         '1st revision of this table in OIFITS format')]
     
 class _OITableHDU2(_OITableHDU):
     _OI_REVN = 2
-    _CARDS = [('OI_REVN', True, _u.is_two, 2, 
+    _CARDS = [('OI_REVN', True, u.is_two, 2, 
         '2nd revision of this table in OIFITS format')]
 
 class _OITableHDU11(
